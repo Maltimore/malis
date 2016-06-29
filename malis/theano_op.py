@@ -51,7 +51,7 @@ class MalisOp(theano.Op):
                                                         batch_edges, 0)
 
         # we want a cost, with minimum zero, maximum one
-        normalization = batch_gt.size ** 2
+        normalization = gt.size / gt.shape[0]
         cost[0] = (pos_pairs * (edge_weights - 1) ** 2 +
                    neg_pairs * (edge_weights ** 2)) / normalization
 

@@ -29,12 +29,10 @@ class MalisOp(theano.Op):
         cost, pos_pairs, neg_pairs = outputs
 
         # allocate outputs
-        cost[0] = np.zeros(edge_weights.shape, dtype=np.float32)
         pos_pairs[0] = np.zeros(edge_weights.shape, dtype=np.int32)
         neg_pairs[0] = np.zeros(edge_weights.shape, dtype=np.int32)
 
         # extract outputs to simpler variable names
-        cost = cost[0]
         pos_pairs = pos_pairs[0]
         neg_pairs = neg_pairs[0]
 
@@ -52,10 +50,10 @@ class MalisOp(theano.Op):
                                                         self.node_idx1, self.node_idx2,
                                                         batch_edges, 0)
 
-            # we want a cost, with minimum zero, maximum one
-            normalization = batch_gt.size ** 2
-            cost[batch_idx, ...] = (batch_pos_pairs * (1 - batch_edges) ** 2 +
-                                    batch_neg_pairs * (batch_edges ** 2)) / normalization
+        # we want a cost, with minimum zero, maximum one
+        normalization = batch_gt.size ** 2
+        cost[0] = (pos_pairs * (edge_weights - 1) ** 2 +
+                   neg_pairs * (edge_weights ** 2)) / normalization
 
     def infer_shape(self, node, input_shapes):
         # outputs are the same size as the first input (edge_weights)
@@ -75,8 +73,8 @@ class MalisOp(theano.Op):
         costs = self(*inputs)
         _, pos_pair_counts, neg_pair_counts = costs.owner.outputs
 
-        normalization = gt[0, ...].size
-        dcost_dweights = 2 * (pos_pair_counts * (1 - edge_weights) + neg_pair_counts * edge_weights) / normalization
+        normalization = gt.size / gt.shape[0]
+        dcost_dweights = 2 * (pos_pair_counts * (edge_weights - 1) + neg_pair_counts * edge_weights) / normalization
 
         # no gradient for ground truth
         return gradient_in[0] * dcost_dweights, theano.gradient.grad_undefined(self, 0, inputs[0].dtype)

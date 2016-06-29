@@ -1,10 +1,11 @@
 import theano
 import theano.tensor as T
+import numpy as np
 import malis as m
 
 class MalisOp(theano.Op):
     # Two MalisOps are the same if their indices are the same
-    __props__ = ('node_idx1', 'node_idx2')
+    __props__ = ('node_idx1_id', 'node_idx2_id')
 
     # inputs:
     #    edge weights: float, size (num_batches, num_edges)
@@ -24,7 +25,18 @@ class MalisOp(theano.Op):
     # compute malis costs
     def perform(self, node, inputs, outputs):
         edge_weights, gt = inputs
+
         cost, pos_pairs, neg_pairs = outputs
+
+        # allocate outputs
+        cost[0] = np.zeros(edge_weights.shape, dtype=np.float32)
+        pos_pairs[0] = np.zeros(edge_weights.shape, dtype=np.int32)
+        neg_pairs[0] = np.zeros(edge_weights.shape, dtype=np.int32)
+
+        # extract outputs to simpler variable names
+        cost = cost[0]
+        pos_pairs = pos_pairs[0]
+        neg_pairs = neg_pairs[0]
 
         # iterate over batches
         for batch_idx in range(gt.shape[0]):
@@ -32,6 +44,7 @@ class MalisOp(theano.Op):
             batch_gt = gt[batch_idx, ...]
             batch_pos_pairs = pos_pairs[batch_idx, ...]
             batch_neg_pairs = neg_pairs[batch_idx, ...]
+
             batch_pos_pairs[...] = m.malis_loss_weights(batch_gt,
                                                         self.node_idx1, self.node_idx2,
                                                         batch_edges, 1)
@@ -44,7 +57,7 @@ class MalisOp(theano.Op):
             cost[batch_idx, ...] = (batch_pos_pairs * (1 - batch_edges) ** 2 +
                                     batch_neg_pairs * (batch_edges ** 2)) / normalization
 
-    def infer_shape(node, input_shapes):
+    def infer_shape(self, node, input_shapes):
         # outputs are the same size as the first input (edge_weights)
         return [input_shapes[0], input_shapes[0], input_shapes[0]]
 
@@ -53,6 +66,8 @@ class MalisOp(theano.Op):
     def __init__(self, node_idx1, node_idx2):
         self.node_idx1 = node_idx1
         self.node_idx2 = node_idx2
+        self.node_idx1_id = id(node_idx1)
+        self.node_idx2_id = id(node_idx2)
         super(MalisOp, self).__init__()
 
     def grad(self, inputs, gradient_in):

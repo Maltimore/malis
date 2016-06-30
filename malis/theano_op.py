@@ -3,6 +3,7 @@ import theano
 import theano.tensor as T
 import numpy as np
 import malis as m
+from scipy.special import comb
 
 class MalisOp(theano.Op):
     '''Theano wrapper around the MALIS loss function.
@@ -69,8 +70,11 @@ class MalisOp(theano.Op):
             batch_neg_pairs[...] = m.malis_loss_weights(batch_gt,
                                                         self.node_idx1, self.node_idx2,
                                                         batch_edges, 0)
-        # we want a cost, with minimum zero, maximum one
-        normalization = gt.size / gt.shape[0]
+        # we want a cost, with minimum zero, maximum one, so the normalization
+        # is the maximum number of pairs merged by an edge, which is N choose 2
+        # for N = #edges,
+        # and the number of edges is the product W*H*D
+        normalization = comb(np.prod(gt.shape[1:]), 2)
         cost[0] = ((pos_pairs * (edge_weights - 1) ** 2 +
                    neg_pairs * (edge_weights ** 2)) / normalization).astype(np.float32)
 

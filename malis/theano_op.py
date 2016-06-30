@@ -72,7 +72,7 @@ class MalisOp(theano.Op):
                                                         batch_edges, 0)
         # we want a cost, with minimum zero, maximum one, so the normalization
         # is the maximum number of pairs merged by an edge, which is N choose 2
-        # for N = #edges,
+        # for N = #voxels,
         # and the number of edges is the product W*H*D
         normalization = comb(np.prod(gt.shape[1:]), 2)
         cost[0] = ((pos_pairs * (edge_weights - 1) ** 2 +

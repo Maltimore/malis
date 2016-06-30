@@ -4,6 +4,12 @@ import numpy as np
 import malis as m
 
 class MalisOp(theano.Op):
+    '''Theano wrapper around the MALIS loss function.
+
+    TODO: document arguments to __init__() and how to use tools in malis module
+    to use them.
+    '''
+
     # Two MalisOps are the same if their indices are the same
     __props__ = ('node_idx1_id', 'node_idx2_id')
 
@@ -21,6 +27,19 @@ class MalisOp(theano.Op):
 
     # by default, only return the first output (per edge cost)
     default_output = 0
+
+    check_input = True
+
+    def __init__(self, node_idx1, node_idx2):
+        self.node_idx1 = node_idx1.copy()
+        self.node_idx2 = node_idx2.copy()
+        self.node_idx1_id = id(node_idx1)
+        self.node_idx2_id = id(node_idx2)
+        super(MalisOp, self).__init__()
+
+    def infer_shape(self, node, input_shapes):
+        # outputs are the same size as the first input (edge_weights)
+        return [input_shapes[0], input_shapes[0], input_shapes[0]]
 
     # compute malis costs
     def perform(self, node, inputs, outputs):
@@ -55,19 +74,6 @@ class MalisOp(theano.Op):
         cost[0] = (pos_pairs * (edge_weights - 1) ** 2 +
                    neg_pairs * (edge_weights ** 2)) / normalization
 
-    def infer_shape(self, node, input_shapes):
-        # outputs are the same size as the first input (edge_weights)
-        return [input_shapes[0], input_shapes[0], input_shapes[0]]
-
-    check_input = True
-
-    def __init__(self, node_idx1, node_idx2):
-        self.node_idx1 = node_idx1
-        self.node_idx2 = node_idx2
-        self.node_idx1_id = id(node_idx1)
-        self.node_idx2_id = id(node_idx2)
-        super(MalisOp, self).__init__()
-
     def grad(self, inputs, gradient_in):
         edge_weights, gt = inputs
         costs = self(*inputs)
@@ -78,3 +84,22 @@ class MalisOp(theano.Op):
 
         # no gradient for ground truth
         return gradient_in[0] * dcost_dweights, theano.gradient.grad_undefined(self, 0, inputs[0].dtype)
+
+
+def malis_3d(input_predictions, ground_truth, batch_size, subvolume_shape, radius=1):
+    '''Malis op wrapper for 3D
+
+    input_predictions - float32 tensor of affinities with 5 dimensions: (batch, #local_edges, D, H, W)
+    ground_truth - int32 tensor of labels with 4 dimensions: (batch, D, H, W)
+    batch_size - integer
+    subvolume_shape - tuple: (D, H, W)
+    radius - default 1, radius of connectivity of neighborhoods.  radius == 1 implies #local_edges = 3
+    '''
+
+    node_idx_1, node_idx_2 = m.nodelist_like(subvolume_shape, m.mknhood3d(radius=radius))
+    mop = MalisOp(node_idx_1, node_idx_2)
+
+    flat_predictions = input_predictions.reshape((batch_size, -1))
+    flat_gt = ground_truth.reshape((batch_size, -1))
+    costs = mop(flat_predictions, flat_gt)
+    return costs.reshape((batch_size,) + subvolume_shape)

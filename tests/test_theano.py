@@ -61,9 +61,7 @@ edges[0, 0, 3, ...] = 0.1
 
 # except one edge
 edges[0, 0, 3, 2, 2] = 0.4
-
 # result should be that cost at that edge is high
-
 
 # register theano variables
 gt_tensor_type = T.TensorType(dtype="int32", broadcastable=[False]*gt.ndim)
@@ -77,29 +75,29 @@ cost = compute_cost(edges, gt)
 
 # analytical computation of the cost at the outlier edge
 normalization = comb(np.prod(gt.shape[1:]), 2)
-pos_cost = 0
-neg_cost = (gt == 1).sum() * (gt == 2).sum() *(0.4)**2 / normalization
+n_m  = 0 # number of matching pairs
+n_n = (gt == 1).sum() * (gt == 2).sum() # unmataching pairs
+pos_cost = n_m * (1-0.4)**2 / normalization
+neg_cost = n_n *(0.4)**2 / normalization
 expected_cost = pos_cost + neg_cost
 
 # compate theano output and analytical computation
 print("The cost at the outlier edge for theano malis is: " + str(cost[0, 0, 3, 2, 2]))
 print("The expected cost at the outlier edge is: " + str(expected_cost))
-assert np.allclose(cost[0, 0, 3, 2, 2],expected_cost)
+assert np.allclose(cost[0, 0, 3, 2, 2],expected_cost, atol=.001)
+
+# Testing gradient
+print("\nTesting the gradient")
+sum_cost_var = T.sum(cost_var)
+grad_var = T.grad(sum_cost_var, edge_var)
+compute_grad = theano.function([gt_var, edge_var], grad_var)
+grad = compute_grad(gt, edges)
+expected_grad = (-2 * n_m + 2 * 0.4 * (n_m + n_n))/normalization
+print ("gradient from theano: ", grad[0, 0, 3, 2, 2])
+print("analytically expected gradient: ", expected_grad)
+assert np.allclose(grad[0, 0, 3, 2, 2], expected_grad, atol=.01)
 
 
-
-## test 2: testing the gradient
-#sum_cost_var = T.sum(cost_var)
-#grad_var = T.grad(sum_cost_var, edge_var)
-#compute_grad = theano.function([gt_var, edge_var], grad_var)
-#grad = compute_grad(gt, edges)
-#expected_grad = 2 * .4 * (pos_cost/(1-.4)**2 + neg_cost/.4**2) \
-#                - 2 * pos_cost/(1-.4)**2
-#print ("gradient from theano: ", grad[0, 2, 2, 2, 0])
-#print("analytically expected gradient: ", expected_grad)
-#assert np.allclose(grad[0, 2, 2, 2, 0], expected_grad)
-#
-#
 ## testing gradient descent
 #import matplotlib.pyplot as plt
 #eta = .01 #learning rate

@@ -1,3 +1,4 @@
+from __future__ import print_function
 import theano
 import theano.tensor as T
 import numpy as np
@@ -20,11 +21,10 @@ grad = T.grad(T.sum(score), w)
 get_score = theano.function([w, gt], score)
 get_grad = theano.function([w, gt], grad)
 
-print get_score(edge_weights, gt_labels)
-print get_grad(edge_weights, gt_labels)
+print(get_score(edge_weights, gt_labels))
+print(get_grad(edge_weights, gt_labels))
 
 for idx in range(100):
     edge_weights -= 0.01 * get_grad(edge_weights, gt_labels)
-    print "E", edge_weights
-    print "SC", get_score(edge_weights, gt_labels)
-    print
+print("E" + str(edge_weights))
+print("SC" + str(get_score(edge_weights, gt_labels)))

@@ -1,3 +1,4 @@
+from __future__ import print_function
 import theano
 import theano.tensor as T
 import numpy as np
@@ -68,11 +69,10 @@ class MalisOp(theano.Op):
             batch_neg_pairs[...] = m.malis_loss_weights(batch_gt,
                                                         self.node_idx1, self.node_idx2,
                                                         batch_edges, 0)
-
         # we want a cost, with minimum zero, maximum one
         normalization = gt.size / gt.shape[0]
-        cost[0] = (pos_pairs * (edge_weights - 1) ** 2 +
-                   neg_pairs * (edge_weights ** 2)) / normalization
+        cost[0] = ((pos_pairs * (edge_weights - 1) ** 2 +
+                   neg_pairs * (edge_weights ** 2)) / normalization).astype(np.float32)
 
     def grad(self, inputs, gradient_in):
         edge_weights, gt = inputs
@@ -95,11 +95,11 @@ def malis_3d(input_predictions, ground_truth, batch_size, subvolume_shape, radiu
     subvolume_shape - tuple: (D, H, W)
     radius - default 1, radius of connectivity of neighborhoods.  radius == 1 implies #local_edges = 3
     '''
+    nhood = m.mknhood3d(radius=radius)
+    node_idx_1, node_idx_2 = m.nodelist_like(subvolume_shape, nhood)
+    mop = MalisOp(node_idx_1.ravel(), node_idx_2.ravel())
 
-    node_idx_1, node_idx_2 = m.nodelist_like(subvolume_shape, m.mknhood3d(radius=radius))
-    mop = MalisOp(node_idx_1, node_idx_2)
-
-    flat_predictions = input_predictions.reshape((batch_size, -1))
-    flat_gt = ground_truth.reshape((batch_size, -1))
+    flat_predictions = input_predictions.flatten(ndim=2)
+    flat_gt = ground_truth.flatten(ndim=2)
     costs = mop(flat_predictions, flat_gt)
-    return costs.reshape((batch_size,) + subvolume_shape)
+    return costs.reshape((batch_size,) + (nhood.shape[0],) + subvolume_shape)

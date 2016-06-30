@@ -267,7 +267,7 @@ def mknhood3d_aniso(radiusxy=1,radiusxy_zminus1=1.8):
 
     nhoodxyz = mknhood3d(radiusxy)
     nhoodxy_zminus1 = mknhood2d(radiusxy_zminus1)
-    
+
     nhood = np.zeros((nhoodxyz.shape[0]+2*nhoodxy_zminus1.shape[0],3),dtype=np.int32)
     nhood[:3,:3] = nhoodxyz
     nhood[3:,0] = -1

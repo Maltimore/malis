@@ -20,7 +20,7 @@ edges_node_idx_2 = edges_node_idx_1 + 1
 edge_weights = np.ones((1, edges_node_idx_1.size), dtype=np.float32) * 0.9
 edge_weights[0, 3] = 0.1
 
-mop = MalisOp(edges_node_idx_1, edges_node_idx_2)
+mop = MalisOp(edges_node_idx_1, edges_node_idx_2, np.array([1,1,8]))
 
 w = T.fmatrix()
 gt = T.imatrix()
@@ -84,7 +84,7 @@ expected_cost = pos_cost + neg_cost
 # compate theano output and analytical computation
 print("The cost at the outlier edge for theano malis is: " + str(cost[0, 0, 3, 2, 2]))
 print("The expected cost at the outlier edge is: " + str(expected_cost))
-assert np.allclose(cost[0, 0, 3, 2, 2],expected_cost, atol=.001)
+assert np.allclose(cost[0, 0, 3, 2, 2],expected_cost)
 
 # Testing gradient
 print("\nTesting the gradient")
@@ -95,7 +95,7 @@ grad = compute_grad(gt, edges)
 expected_grad = (-2 * n_m + 2 * 0.4 * (n_m + n_n))/normalization
 print ("gradient from theano: ", grad[0, 0, 3, 2, 2])
 print("analytically expected gradient: ", expected_grad)
-assert np.allclose(grad[0, 0, 3, 2, 2], expected_grad, atol=.01)
+assert np.allclose(grad[0, 0, 3, 2, 2], expected_grad)
 
 
 ## testing gradient descent

@@ -32,7 +32,13 @@ class MalisOp(theano.Op):
 
     check_input = True
 
-    def __init__(self, node_idx1, node_idx2):
+    def __init__(self, node_idx1, node_idx2, edges_shape):
+        """
+        node_idx1 and node_idx2 are the offset of voxels in an edge array,
+        together they describe the edges between corresponding entries.
+        edges shape should be of shape
+        [batch_size, #edges_per_voxel, width, height, depth]
+        """
         self.node_idx1 = node_idx1.copy()
         self.node_idx2 = node_idx2.copy()
         self.node_idx1_id = id(node_idx1)
@@ -42,7 +48,7 @@ class MalisOp(theano.Op):
         # is the maximum number of pairs merged by an edge, which is N choose 2
         # for N = #voxels,
         # and the number of edges is the product W*H*D
-        self.normalization = comb(np.amax(node_idx1), 2)
+        self.normalization = comb(np.prod(edges_shape[2:]), 2)
 
         super(MalisOp, self).__init__()
 
@@ -103,10 +109,11 @@ def malis_3d(input_predictions, ground_truth, batch_size, subvolume_shape, radiu
     radius - default 1, radius of connectivity of neighborhoods.  radius == 1 implies #local_edges = 3
     '''
     nhood = m.mknhood3d(radius=radius)
+    edges_shape = (batch_size,) + (nhood.shape[0],) + subvolume_shape
     node_idx_1, node_idx_2 = m.nodelist_like(subvolume_shape, nhood)
-    mop = MalisOp(node_idx_1.ravel(), node_idx_2.ravel())
+    mop = MalisOp(node_idx_1.ravel(), node_idx_2.ravel(), edges_shape)
 
     flat_predictions = input_predictions.flatten(ndim=2)
     flat_gt = ground_truth.flatten(ndim=2)
     costs = mop(flat_predictions, flat_gt)
-    return costs.reshape((batch_size,) + (nhood.shape[0],) + subvolume_shape)
+    return costs.reshape(edges_shape)

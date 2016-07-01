@@ -9,10 +9,8 @@ import pdb
 
 #########################
 # test phase 1
-print("")
-print("Starting test 1")
-print("")
-print("Starting a very simple one-dimensional example with" \
+print("\nStarting test 1")
+print("\nStarting a very simple one-dimensional example with" \
       " an edge after position 3")
 gt_labels = np.array([[1, 1, 1, 1, 2, 2, 2, 2]]).astype(np.int32)
 edges_node_idx_1 = np.arange(gt_labels.size - 1, dtype=np.int32)
@@ -42,10 +40,8 @@ print(edge_weights, gt_labels)
 
 #########################
 # test phase 2
-print("")
-print("Starting Test 2")
-print("")
-print("Creating data for which the segmentation (the edges) are already"\
+print("\nStarting Test 2")
+print("\nCreating data for which the segmentation (the edges) are already"\
       " pretty good, only one outlier isn't.")
 # create some test data
 # two objects
@@ -98,25 +94,28 @@ print("analytically expected gradient: ", expected_grad)
 assert np.allclose(grad[0, 0, 3, 2, 2], expected_grad)
 
 
-## testing gradient descent
-#import matplotlib.pyplot as plt
-#eta = .01 #learning rate
-#n_iterations = 200000
-#
-#compute_sum_cost = theano.function([gt_var, edge_var], sum_cost_var)
-#gt2 = np.empty((1,5,5,1), dtype=np.int32)
-#gt2[0, :, :2, 0] = 1
-#gt2[0, :, 2:, 0] = 2
-#edges2 = np.random.uniform(size=(1,5,5,1,3))
-#
-#total_cost_vec = np.empty(n_iterations)
-#for i in np.arange(n_iterations):
-#    grad = compute_grad(gt2, edges2)
-#    edges2 -= eta * grad
-#    edges2 = np.clip(edges2, 0, 1)
-#    total_cost_vec[i] = compute_sum_cost(gt2, edges2)
-#plt.figure()
-#plt.plot(total_cost_vec)
-#plt.xlabel("iterations"); plt.ylabel("cost")
-#plt.title("output gradient descent")
-##plt.show()
+# testing gradient descent
+print("\nTest 3")
+print("Doing gradient descent on a bigger, 3-dimensional volume", flush=True)
+import matplotlib.pyplot as plt
+eta = .01 #learning rate
+n_iterations = 20000
+
+compute_sum_cost = theano.function([gt_var, edge_var], sum_cost_var)
+edges2 = np.random.uniform(size=(1,3,5,6,7)).astype(np.float32)
+
+total_cost_vec = np.empty(n_iterations)
+for i in np.arange(n_iterations):
+    grad = compute_grad(gt, edges2)
+    edges2 -= eta * grad
+    edges2 = np.clip(edges2, 0, 1)
+    total_cost_vec[i] = compute_sum_cost(gt, edges2)
+plt.figure()
+plt.plot(total_cost_vec)
+plt.xlabel("iterations"); plt.ylabel("cost")
+plt.title("output gradient descent")
+#plt.show()
+print("Done. Call plt.show() to look at the graph.")
+print("The total cost went from " + str(total_cost_vec[0]) +
+      " to " + str(total_cost_vec[-1]) + " in " + str(n_iterations) +
+      " iterations.")

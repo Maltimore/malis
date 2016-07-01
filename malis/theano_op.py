@@ -117,3 +117,30 @@ def malis_3d(input_predictions, ground_truth, batch_size, subvolume_shape, radiu
     flat_gt = ground_truth.flatten(ndim=2)
     costs = mop(flat_predictions, flat_gt)
     return costs.reshape(edges_shape)
+
+
+class malis_keras_cost_fn(object):
+    """
+    This class is supposed to be a wrapper for the malis cost, to be used
+    by Keras as a custom loss function. In other words, this object essentially
+    IS the cost function that you will pass directly into Keras.
+    CAUTION: Due to some specifics about Keras' behaviour, you have to apply
+    a little hack: When calling model.fit() from Keras, equip you ground
+    truth tensor with an extra dimension of length one. This extra dimension
+    will be deleted internally but is needed to work around the Keras handles
+    loss functions.
+
+    VOLUME_SHAPE should be of dimensions [Height, Width, Depth]
+    """
+    __name__ = "Keras_Malis_cost"
+    def __init__(self, BATCH_SIZE, VOLUME_SHAPE):
+        self.BATCH_SIZE = BATCH_SIZE
+        self.VOLUME_SHAPE = VOLUME_SHAPE
+
+
+    def __call__(self, gt_var, pred_var):
+        # make malisOp variable
+        gt_var = gt_var.flatten(5)
+        gt_as_int = T.cast(gt_var, "int32")
+        cost_var = malis_3d(pred_var, gt_as_int, self.BATCH_SIZE, self.VOLUME_SHAPE)
+        return T.sum(cost_var)

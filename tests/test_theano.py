@@ -94,7 +94,8 @@ print("analytically expected gradient: ", expected_grad)
 assert np.allclose(grad[0, 0, 3, 2, 2], expected_grad)
 
 
-# testing gradient descent
+#########################
+# test phase 3
 print("\nTest 3")
 print("Doing gradient descent on a bigger, 3-dimensional volume", flush=True)
 import matplotlib.pyplot as plt

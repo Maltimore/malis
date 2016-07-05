@@ -2,7 +2,7 @@ from __future__ import print_function
 import theano
 import theano.tensor as T
 import numpy as np
-from malis.theano_op import malis_keras_cost_fn
+from malis.theano_op import keras_malis_loss_fn_3d
 import pdb
 import matplotlib.pyplot as plt
 from keras.models import Sequential
@@ -13,7 +13,7 @@ from keras.optimizers import SGD
 BATCH_SIZE = 5
 EDG_PER_VOX = 3
 VOLUME_SHAPE = (1,5,6,7)
-EDGEVOL_SHAPE = VOLUME_SHAPE + (EDG_PER_VOX,)
+EDGEVOL_SHAPE = (EDG_PER_VOX,) + VOLUME_SHAPE
 DATA_SHAPE = (BATCH_SIZE,) + VOLUME_SHAPE
 
 # create some test data
@@ -37,12 +37,12 @@ gt[4, 0, 2:, 3:, ...] = 2
 # add some noise
 data = gt + np.random.normal(0, .1, size=DATA_SHAPE)
 
-
+# start building classifier
 eta = .01 #learning rate
 n_iterations = 2000
-keras_malis_loss = malis_keras_cost_fn(BATCH_SIZE, VOLUME_SHAPE[1:])
+keras_malis_loss = keras_malis_loss_fn_3d(BATCH_SIZE, VOLUME_SHAPE)
 
-# start model creation
+# start network creation
 model = Sequential()
 model.add(Convolution3D(nb_filter=5,
                         kernel_dim1=3,

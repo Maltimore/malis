@@ -99,6 +99,26 @@ class MalisOp(theano.Op):
         return gradient_in[0] * dcost_dweights, theano.gradient.grad_undefined(self, 0, inputs[0].dtype)
 
 
+def malis_2d(input_predictions, ground_truth, batch_size, subvolume_shape, radius=1):
+    '''Malis op wrapper for 2D
+
+    input_predictions - float32 tensor of affinities with 5 dimensions: (batch, #local_edges, D, H, W)
+    ground_truth - int32 tensor of labels with 4 dimensions: (batch, D, H, W)
+    batch_size - integer
+    subvolume_shape - tuple: (H, W)
+    radius - default 1, radius of connectivity of neighborhoods.  radius == 1 implies #local_edges = 3
+    '''
+    nhood = m.mknhood2d(radius=radius)
+    edges_shape = (batch_size,) + (nhood.shape[0],) + subvolume_shape
+    node_idx_1, node_idx_2 = m.nodelist_like_2d(subvolume_shape, nhood)
+    mop = MalisOp(node_idx_1.ravel(), node_idx_2.ravel(), edges_shape)
+
+    flat_predictions = input_predictions.flatten(ndim=2)
+    flat_gt = ground_truth.flatten(ndim=2)
+    costs = mop(flat_predictions, flat_gt)
+    return costs.reshape(edges_shape)
+
+
 def malis_3d(input_predictions, ground_truth, batch_size, subvolume_shape, radius=1):
     '''Malis op wrapper for 3D
 
@@ -119,27 +139,7 @@ def malis_3d(input_predictions, ground_truth, batch_size, subvolume_shape, radiu
     return costs.reshape(edges_shape)
 
 
-def malis_2d(input_predictions, ground_truth, batch_size, subvolume_shape, radius=1):
-    '''Malis op wrapper for 3D
-
-    input_predictions - float32 tensor of affinities with 5 dimensions: (batch, #local_edges, D, H, W)
-    ground_truth - int32 tensor of labels with 4 dimensions: (batch, D, H, W)
-    batch_size - integer
-    subvolume_shape - tuple: (D, H, W)
-    radius - default 1, radius of connectivity of neighborhoods.  radius == 1 implies #local_edges = 3
-    '''
-    nhood = m.mknhood2d(radius=radius)
-    edges_shape = (batch_size,) + (nhood.shape[0],) + subvolume_shape
-    node_idx_1, node_idx_2 = m.nodelist_like_2d(subvolume_shape, nhood)
-    mop = MalisOp(node_idx_1.ravel(), node_idx_2.ravel(), edges_shape)
-
-    flat_predictions = input_predictions.flatten(ndim=2)
-    flat_gt = ground_truth.flatten(ndim=2)
-    costs = mop(flat_predictions, flat_gt)
-    return costs.reshape(edges_shape)
-
-
-class malis_keras_cost_fn(object):
+class keras_malis_loss_fn_2d(object):
     """
     This class is supposed to be a wrapper for the malis cost, to be used
     by Keras as a custom loss function. In other words, this object essentially
@@ -148,38 +148,12 @@ class malis_keras_cost_fn(object):
     a little hack: When calling model.fit() from Keras, equip your ground
     truth tensor with an extra dimension of length one. This extra dimension
     will be deleted internally but is needed to work around how Keras handles
-    loss functions.
+    loss functions. So the ground_truth tensor is assumed to have the following
+    dimensions: [batches, channels, height, width, 1]
 
-    VOLUME_SHAPE should be of dimensions [Height, Width, Depth]
+    VOLUME_SHAPE should be of dimensions [channels, height, width]
     """
-    __name__ = "Keras_Malis_cost"
-    def __init__(self, BATCH_SIZE, VOLUME_SHAPE):
-        self.BATCH_SIZE = BATCH_SIZE
-        self.VOLUME_SHAPE = VOLUME_SHAPE
-
-
-    def __call__(self, gt_var, pred_var):
-        # make malisOp variable
-        gt_var = gt_var.flatten(5)
-        gt_as_int = T.cast(gt_var, "int32")
-        cost_var = malis_3d(pred_var, gt_as_int, self.BATCH_SIZE, self.VOLUME_SHAPE)
-        return T.sum(cost_var)
-
-
-class malis_keras_cost_fn_2d(object):
-    """
-    This class is supposed to be a wrapper for the malis cost, to be used
-    by Keras as a custom loss function. In other words, this object essentially
-    IS the cost function that you will pass directly into Keras.
-    CAUTION: Due to some specifics about Keras' behaviour, you have to apply
-    a little hack: When calling model.fit() from Keras, equip your ground
-    truth tensor with an extra dimension of length one. This extra dimension
-    will be deleted internally but is needed to work around how Keras handles
-    loss functions.
-
-    VOLUME_SHAPE should be of dimensions [Height, Width, Depth]
-    """
-    __name__ = "Keras_Malis_cost"
+    __name__ = "Keras_Malis_cost_2d"
     def __init__(self, BATCH_SIZE, VOLUME_SHAPE):
         self.BATCH_SIZE = BATCH_SIZE
         self.VOLUME_SHAPE = VOLUME_SHAPE
@@ -189,5 +163,39 @@ class malis_keras_cost_fn_2d(object):
         # make malisOp variable
         gt_var = gt_var.flatten(4)
         gt_as_int = T.cast(gt_var, "int32")
-        cost_var = malis_2d(pred_var, gt_as_int, self.BATCH_SIZE, self.VOLUME_SHAPE)
+        # in the following, we do not pass the number of channels to malis_2d,
+        # we just assume the number of channels to be 1
+        cost_var = malis_2d(pred_var, gt_as_int, self.BATCH_SIZE, self.VOLUME_SHAPE[1:])
         return T.sum(cost_var)
+
+
+class keras_malis_loss_fn_3d(object):
+    """
+    This class is supposed to be a wrapper for the malis cost, to be used
+    by Keras as a custom loss function. In other words, this object essentially
+    IS the cost function that you will pass directly into Keras.
+    CAUTION: Due to some specifics about Keras' behaviour, you have to apply
+    a little hack: When calling model.fit() from Keras, equip your ground
+    truth tensor with an extra dimension of length one. This extra dimension
+    will be deleted internally but is needed to work around how Keras handles
+    loss functions. So the ground_truth tensor is assumed to have the following
+    dimensions: [batches, channels, height, width, depth, 1]
+
+    VOLUME_SHAPE should be of dimensions [channels, height, width, depth]
+    """
+    __name__ = "Keras_Malis_cost_3d"
+    def __init__(self, BATCH_SIZE, VOLUME_SHAPE):
+        self.BATCH_SIZE = BATCH_SIZE
+        self.VOLUME_SHAPE = VOLUME_SHAPE
+
+
+    def __call__(self, gt_var, pred_var):
+        # make malisOp variable
+        gt_var = gt_var.flatten(5)
+        gt_as_int = T.cast(gt_var, "int32")
+        # in the following, we do not pass the number of channels to malis_3d,
+        # we just assume the number of channels to be 1
+        cost_var = malis_3d(pred_var, gt_as_int, self.BATCH_SIZE, self.VOLUME_SHAPE[1:])
+        return T.sum(cost_var)
+
+

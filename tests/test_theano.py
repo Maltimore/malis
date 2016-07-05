@@ -50,7 +50,6 @@ gt[0, :3, ...] = 1
 gt[0, 3:, ...] = 2
 
 # most edges are 0.9
-edges = np.ones((1, 5, 6, 7, 3), dtype=np.float32) * 0.9
 # the ones linking from the center 0 plane to the 2s object are all very low
 edges = np.ones((1,3,5,6,7), dtype=np.float32) * 0.9
 edges[0, 0, 3, ...] = 0.1
@@ -97,7 +96,7 @@ assert np.allclose(grad[0, 0, 3, 2, 2], expected_grad)
 #########################
 # test phase 3
 print("\nTest 3")
-print("Doing gradient descent on a bigger, 3-dimensional volume", flush=True)
+print("Doing gradient descent on a bigger, 3-dimensional volume")
 import matplotlib.pyplot as plt
 eta = .01 #learning rate
 n_iterations = 20000

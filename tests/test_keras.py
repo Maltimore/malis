@@ -37,14 +37,6 @@ gt[4, 0, 2:, 3:, ...] = 2
 # add some noise
 data = gt + np.random.normal(0, .1, size=DATA_SHAPE)
 
-def malis_cost(gt_var, pred_var):
-    # make malisOp variable
-    gt_var = gt_var.flatten(5)
-    gt_as_int = T.cast(gt_var, "int32")
-    cost_var = malis_3d(pred_var, gt_as_int, BATCH_SIZE, VOLUME_SHAPE[1:])
-    return T.sum(cost_var)
-
-
 
 eta = .01 #learning rate
 n_iterations = 2000

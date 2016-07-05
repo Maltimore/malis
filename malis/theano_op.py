@@ -161,7 +161,6 @@ class keras_malis_loss_fn_2d(object):
 
     def __call__(self, gt_var, pred_var):
         # make malisOp variable
-        gt_var = gt_var.flatten(4)
         gt_as_int = T.cast(gt_var, "int32")
         # in the following, we do not pass the number of channels to malis_2d,
         # we just assume the number of channels to be 1
@@ -191,7 +190,6 @@ class keras_malis_loss_fn_3d(object):
 
     def __call__(self, gt_var, pred_var):
         # make malisOp variable
-        gt_var = gt_var.flatten(5)
         gt_as_int = T.cast(gt_var, "int32")
         # in the following, we do not pass the number of channels to malis_3d,
         # we just assume the number of channels to be 1

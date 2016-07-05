@@ -32,10 +32,6 @@ for idx in range(100):
     edge_weights -= 0.01 * get_grad(edge_weights, gt_labels)
 print("Edges after gradient descent (fourth value should be low):")
 print(edge_weights)
-print("Cost after gradient descent:")
-print(edge_weights, gt_labels)
-
-
 
 
 #########################
@@ -78,7 +74,7 @@ expected_cost = pos_cost + neg_cost
 
 # compate theano output and analytical computation
 print("The cost at the outlier edge for theano malis is: " + str(cost[0, 0, 3, 2, 2]))
-print("The expected cost at the outlier edge is: " + str(expected_cost))
+print("The analytically expected cost at the outlier edge is: " + str(expected_cost))
 assert np.allclose(cost[0, 0, 3, 2, 2],expected_cost)
 
 # Testing gradient

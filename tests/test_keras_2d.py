@@ -10,11 +10,11 @@ from keras.layers import Dense, Activation, Flatten, Reshape
 from keras.layers.convolutional import Convolution2D, MaxPooling2D
 from keras.optimizers import SGD
 
-BATCH_SIZE = 5
+N_SAMPLES = 5
 EDG_PER_VOX = 2
 VOLUME_SHAPE = (1,5,6)
 EDGEVOL_SHAPE = (EDG_PER_VOX,) +  VOLUME_SHAPE
-DATA_SHAPE = (BATCH_SIZE,) + VOLUME_SHAPE
+DATA_SHAPE = (N_SAMPLES,) + VOLUME_SHAPE
 
 # create some test data
 # two objects
@@ -40,7 +40,7 @@ data = gt + np.random.normal(0, .1, size=DATA_SHAPE)
 
 eta = .01 #learning rate
 n_iterations = 2000
-keras_malis_loss = keras_malis_loss_fn_2d(BATCH_SIZE, VOLUME_SHAPE)
+keras_malis_loss = keras_malis_loss_fn_2d(N_SAMPLES, VOLUME_SHAPE)
 
 # start model creation
 model = Sequential()
@@ -55,9 +55,11 @@ model.add(Dense(np.prod(EDGEVOL_SHAPE)))
 model.add(Reshape(EDGEVOL_SHAPE))
 model.compile(optimizer="SGD",
               loss=keras_malis_loss)
+model.optimizer.lr.set_value(.01)
 
 training_hist = model.fit(data,
                         np.expand_dims(gt, -1),
+                        batch_size=5,
                         nb_epoch=n_iterations,
                         verbose=0)
 plt.figure()

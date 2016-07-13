@@ -10,11 +10,11 @@ from keras.layers import Dense, Activation, Flatten, Reshape
 from keras.layers.convolutional import Convolution3D, MaxPooling2D
 from keras.optimizers import SGD
 
-BATCH_SIZE = 5
+N_SAMPLES = 6
 EDG_PER_VOX = 3
 VOLUME_SHAPE = (1,5,6,7)
 EDGEVOL_SHAPE = (EDG_PER_VOX,) + VOLUME_SHAPE
-DATA_SHAPE = (BATCH_SIZE,) + VOLUME_SHAPE
+DATA_SHAPE = (N_SAMPLES,) + VOLUME_SHAPE
 
 # create some test data
 # two objects
@@ -34,13 +34,16 @@ gt[3, 0, :, 3:, 4] = 2
 # fifth sample
 gt[4, 0, :2, :3, ...] = 1
 gt[4, 0, 2:, 3:, ...] = 2
+# fifth sample
+gt[5, 0, :1, :3, ...] = 1
+gt[5, 0, 1:, 3:, ...] = 2
 # add some noise
 data = gt + np.random.normal(0, .1, size=DATA_SHAPE)
 
 # start building classifier
 eta = .01 #learning rate
-n_iterations = 2000
-keras_malis_loss = keras_malis_loss_fn_3d(BATCH_SIZE, VOLUME_SHAPE)
+n_epochs = 2000
+keras_malis_loss = keras_malis_loss_fn_3d(N_SAMPLES, VOLUME_SHAPE)
 
 # start network creation
 model = Sequential()
@@ -59,7 +62,8 @@ model.compile(optimizer="SGD",
 
 training_hist = model.fit(data,
                         np.expand_dims(gt, -1),
-                        nb_epoch=n_iterations,
+                        batch_size=3,
+                        nb_epoch=n_epochs,
                         verbose=0)
 plt.figure()
 plt.plot(training_hist.history['loss'])

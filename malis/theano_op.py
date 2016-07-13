@@ -51,6 +51,7 @@ class MalisOp(theano.Op):
         # is the maximum number of pairs merged by an edge, which is N choose 2
         # for N = #voxels, and the number of edges is the product W*H*D
         self.normalization = comb(np.prod(volume_shape), 2)
+        self.current_normalization = None
 
         super(MalisOp, self).__init__()
 
@@ -64,6 +65,9 @@ class MalisOp(theano.Op):
         cost, pos_pairs, neg_pairs = outputs
 
         batch_size = gt.shape[0]
+        # the following is recomputed every time because the batch size can
+        # change
+        current_normalization = self.normalization * batch_size
 
         # allocate outputs
         pos_pairs[0] = np.zeros(edge_weights.shape, dtype=np.int32)
@@ -81,22 +85,26 @@ class MalisOp(theano.Op):
             batch_neg_pairs = neg_pairs[batch_idx, ...]
 
             batch_pos_pairs[...] = m.malis_loss_weights(batch_gt,
-                                                        self.node_idx1, self.node_idx2,
-                                                        batch_edges, 1)
+                                                self.node_idx1,
+                                                self.node_idx2,
+                                                batch_edges, 1)
             batch_neg_pairs[...] = m.malis_loss_weights(batch_gt,
-                                                        self.node_idx1, self.node_idx2,
-                                                        batch_edges, 0)
+                                                self.node_idx1,
+                                                self.node_idx2,
+                                                batch_edges, 0)
         cost[0] = ((pos_pairs * (edge_weights - 1) ** 2 +
                    neg_pairs * (edge_weights ** 2)) /
-                   self.normalization).astype(np.float32)
+                   current_normalization).astype(np.float32)
 
     def grad(self, inputs, gradient_in):
         edge_weights, gt = inputs
         costs = self(*inputs)
         _, pos_pair_counts, neg_pair_counts = costs.owner.outputs
 
+        current_normalization = self.normalization * pos_pair_counts.shape[0]
         dcost_dweights = 2 * (pos_pair_counts * (edge_weights - 1) + \
-                              neg_pair_counts * edge_weights) / self.normalization
+                              neg_pair_counts * edge_weights) / \
+                              current_normalization
 
         # no gradient for ground truth
         return gradient_in[0] * dcost_dweights, theano.gradient.grad_undefined(self, 0, inputs[0].dtype)
@@ -112,14 +120,14 @@ def malis_2d(input_predictions, ground_truth, batch_size, subvolume_shape, radiu
     radius - default 1, radius of connectivity of neighborhoods.  radius == 1 implies #local_edges = 3
     '''
     nhood = m.mknhood2d(radius=radius)
-    edges_shape = (batch_size,) + (nhood.shape[0],) + subvolume_shape
+    edges_shape = (nhood.shape[0],) + subvolume_shape
     node_idx_1, node_idx_2 = m.nodelist_like_2d(subvolume_shape, nhood)
     mop = MalisOp(node_idx_1.ravel(), node_idx_2.ravel(), subvolume_shape)
 
     flat_predictions = input_predictions.flatten(ndim=2)
     flat_gt = ground_truth.flatten(ndim=2)
     costs = mop(flat_predictions, flat_gt)
-    return costs.reshape(edges_shape)
+    return costs.reshape((-1,) + edges_shape)
 
 
 def malis_3d(input_predictions, ground_truth, batch_size, subvolume_shape, radius=1):
@@ -132,14 +140,14 @@ def malis_3d(input_predictions, ground_truth, batch_size, subvolume_shape, radiu
     radius - default 1, radius of connectivity of neighborhoods.  radius == 1 implies #local_edges = 3
     '''
     nhood = m.mknhood3d(radius=radius)
-    edges_shape = (batch_size,) + (nhood.shape[0],) + subvolume_shape
+    edges_shape = (nhood.shape[0],) + subvolume_shape
     node_idx_1, node_idx_2 = m.nodelist_like(subvolume_shape, nhood)
     mop = MalisOp(node_idx_1.ravel(), node_idx_2.ravel(), subvolume_shape)
 
     flat_predictions = input_predictions.flatten(ndim=2)
     flat_gt = ground_truth.flatten(ndim=2)
     costs = mop(flat_predictions, flat_gt)
-    return costs.reshape(edges_shape)
+    return costs.reshape((-1,) + edges_shape)
 
 
 class keras_malis_loss_fn_2d(object):
@@ -168,7 +176,7 @@ class keras_malis_loss_fn_2d(object):
         # in the following, we do not pass the number of channels to malis_2d,
         # we just assume the number of channels to be 1
         cost_var = malis_2d(pred_var, gt_as_int, self.BATCH_SIZE, self.VOLUME_SHAPE[1:])
-        return T.sum(cost_var) / self.BATCH_SIZE
+        return T.sum(cost_var)
 
 
 class keras_malis_loss_fn_3d(object):
@@ -197,6 +205,6 @@ class keras_malis_loss_fn_3d(object):
         # in the following, we do not pass the number of channels to malis_3d,
         # we just assume the number of channels to be 1
         cost_var = malis_3d(pred_var, gt_as_int, self.BATCH_SIZE, self.VOLUME_SHAPE[1:])
-        return T.sum(cost_var) / self.BATCH_SIZE
+        return T.sum(cost_var)
 
 

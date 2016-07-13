@@ -51,7 +51,6 @@ class MalisOp(theano.Op):
         # is the maximum number of pairs merged by an edge, which is N choose 2
         # for N = #voxels, and the number of edges is the product W*H*D
         self.normalization = comb(np.prod(volume_shape), 2)
-        self.current_normalization = None
 
         super(MalisOp, self).__init__()
 

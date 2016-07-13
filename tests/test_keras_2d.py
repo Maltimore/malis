@@ -59,7 +59,7 @@ model.optimizer.lr.set_value(.01)
 
 training_hist = model.fit(data,
                         np.expand_dims(gt, -1),
-                        batch_size=5,
+                        batch_size=3,
                         nb_epoch=n_iterations,
                         verbose=0)
 plt.figure()

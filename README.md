@@ -9,3 +9,4 @@ SC Turaga, KL Briggman, M Helmstaedter, W Denk, HS Seung (2009). *Maximin learni
 
 http://papers.nips.cc/paper/3887-maximin-affinity-learning-of-image-segmentation
 
+Note that you have to have the c++ library boost installed (on ubuntu you can install it with "sudo apt-get install libboost-all-dev").

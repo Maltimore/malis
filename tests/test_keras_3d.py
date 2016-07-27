@@ -26,22 +26,30 @@ gt[0, 0, 3:, ...] = 2
 gt[1, 0, :, :3, ...] = 1
 gt[1, 0, :, 3:, ...] = 2
 # third sample
-gt[2, 0, :, :3, 0] = 1
-gt[2, 0, :, 3:, 0] = 2
-# fourth sample
-gt[3, 0, :, :3, 4] = 1
-gt[3, 0, :, 3:, 4] = 2
-# fifth sample
-gt[4, 0, :2, :3, ...] = 1
-gt[4, 0, 2:, 3:, ...] = 2
-# fifth sample
-gt[5, 0, :1, :3, ...] = 1
-gt[5, 0, 1:, 3:, ...] = 2
+gt[2, 0, :, :2, ...] = 1
+gt[2, 0, :, 2:, ...] = 2
+
+# create data from gt
+data=np.zeros(DATA_SHAPE)
+# first sample
+data[0, 0, :3, ...] = 1
+data[0, 0, 3, ...] = 0
+data[0, 0, 4:, ...] = 1
+# second sample
+data[1, 0, :, :3, ...] = 1
+data[1, 0, :, 3, ...] = 0
+data[1, 0, :, 4:, ...] = 1
+# third sample
+data[2, 0, :, :2, ...] = 1
+data[2, 0, :, 2, ...] = 0
+data[2, 0, :, 3:, ...] = 1
+
+
 # add some noise
-data = gt + np.random.normal(0, .1, size=DATA_SHAPE)
+data += np.random.normal(loc=0, scale=.01, size=DATA_SHAPE)
 
 # start building classifier
-eta = .01 #learning rate
+eta = .1 #learning rate
 n_epochs = 2000
 keras_malis_loss = keras_malis_loss_fn_3d(N_SAMPLES, VOLUME_SHAPE)
 
@@ -51,12 +59,28 @@ model.add(Convolution3D(nb_filter=5,
                         kernel_dim1=3,
                         kernel_dim2=3,
                         kernel_dim3=3,
-                        input_shape=VOLUME_SHAPE))
-
+                        input_shape=VOLUME_SHAPE,
+                        border_mode="same"))
+model.add(Activation("relu"))
+model.add(Convolution3D(nb_filter=5,
+                        kernel_dim1=3,
+                        kernel_dim2=3,
+                        kernel_dim3=3,
+                        input_shape=VOLUME_SHAPE,
+                        border_mode="same"))
+model.add(Activation("relu"))
+model.add(Convolution3D(nb_filter=10,
+                        kernel_dim1=3,
+                        kernel_dim2=3,
+                        kernel_dim3=3,
+                        input_shape=VOLUME_SHAPE,
+                        border_mode="same"))
 model.add(Activation("relu"))
 model.add(Flatten())
 model.add(Dense(np.prod(EDGEVOL_SHAPE)))
+model.add(Activation("sigmoid"))
 model.add(Reshape(EDGEVOL_SHAPE))
+sgd = SGD(lr=eta, momentum=0.5, nesterov=True)
 model.compile(optimizer="SGD",
               loss=keras_malis_loss)
 
@@ -69,4 +93,23 @@ plt.figure()
 plt.plot(training_hist.history['loss'])
 plt.xlabel("epochs")
 plt.ylabel("training loss")
+
+
+
+# predict an affinity graph and compare it with the affinity graph
+# created by the true segmentation
+from malis import mknhood3d, seg_to_affgraph
+pred_aff = model.predict(data)[1,:,0]
+aff = seg_to_affgraph(gt[1,0], mknhood3d())
+plt.figure()
+plt.subplot(131)
+plt.pcolor(data[1,0,1], cmap="gray")
+plt.title("data")
+plt.subplot(132)
+plt.pcolor(aff[1,0], cmap="gray")
+plt.title("aff from gt")
+plt.subplot(133)
+plt.pcolor(pred_aff[1,0], cmap="gray")
+plt.title("predicted aff")
+
 plt.show()

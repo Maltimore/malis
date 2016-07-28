@@ -155,7 +155,7 @@ class keras_malis_loss_fn_2d(object):
     by Keras as a custom loss function. In other words, this object essentially
     IS the cost function that you will pass directly into Keras.
 
-    VOLUME_SHAPE dimensions [channels, height, width]
+    VOLUME_SHAPE dimensions [channels, width, height]
     """
     __name__ = "Keras_Malis_cost_2d"
     def __init__(self, BATCH_SIZE, VOLUME_SHAPE):
@@ -178,7 +178,7 @@ class keras_malis_loss_fn_3d(object):
     by Keras as a custom loss function. In other words, this object essentially
     IS the cost function that you will pass directly into Keras.
 
-    VOLUME_SHAPE should be of dimensions [channels, height, width, depth]
+    VOLUME_SHAPE should be of dimensions [channels, depth, width, height]
     """
     __name__ = "Keras_Malis_cost_3d"
     def __init__(self, BATCH_SIZE, VOLUME_SHAPE):

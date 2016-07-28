@@ -154,14 +154,8 @@ class keras_malis_loss_fn_2d(object):
     This class is supposed to be a wrapper for the malis cost, to be used
     by Keras as a custom loss function. In other words, this object essentially
     IS the cost function that you will pass directly into Keras.
-    CAUTION: Due to some specifics about Keras' behaviour, you have to apply
-    a little hack: When calling model.fit() from Keras, equip your ground
-    truth tensor with an extra dimension of length one. This extra dimension
-    will be deleted internally but is needed to work around how Keras handles
-    loss functions. So the ground_truth tensor is assumed to have the following
-    dimensions: [batches, channels, height, width, 1]
 
-    VOLUME_SHAPE should be of dimensions [channels, height, width]
+    VOLUME_SHAPE dimensions [channels, height, width]
     """
     __name__ = "Keras_Malis_cost_2d"
     def __init__(self, BATCH_SIZE, VOLUME_SHAPE):
@@ -183,12 +177,6 @@ class keras_malis_loss_fn_3d(object):
     This class is supposed to be a wrapper for the malis cost, to be used
     by Keras as a custom loss function. In other words, this object essentially
     IS the cost function that you will pass directly into Keras.
-    CAUTION: Due to some specifics about Keras' behaviour, you have to apply
-    a little hack: When calling model.fit() from Keras, equip your ground
-    truth tensor with an extra dimension of length one. This extra dimension
-    will be deleted internally but is needed to work around how Keras handles
-    loss functions. So the ground_truth tensor is assumed to have the following
-    dimensions: [batches, channels, height, width, depth, 1]
 
     VOLUME_SHAPE should be of dimensions [channels, height, width, depth]
     """

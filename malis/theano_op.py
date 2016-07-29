@@ -149,36 +149,15 @@ def malis_3d(input_predictions, ground_truth, batch_size, subvolume_shape, radiu
     return costs.reshape((-1,) + edges_shape)
 
 
-class keras_malis_loss_fn_2d(object):
+class keras_malis_loss_fn(object):
     """
     This class is supposed to be a wrapper for the malis cost, to be used
     by Keras as a custom loss function. In other words, this object essentially
     IS the cost function that you will pass directly into Keras.
 
-    VOLUME_SHAPE dimensions [channels, width, height]
-    """
-    __name__ = "Keras_Malis_cost_2d"
-    def __init__(self, BATCH_SIZE, VOLUME_SHAPE):
-        self.BATCH_SIZE = BATCH_SIZE
-        self.VOLUME_SHAPE = VOLUME_SHAPE
-
-
-    def __call__(self, gt_var, pred_var):
-        # make malisOp variable
-        gt_as_int = T.cast(gt_var, "int32")
-        # in the following, we do not pass the number of channels to malis_2d,
-        # we just assume the number of channels to be 1
-        cost_var = malis_2d(pred_var, gt_as_int, self.BATCH_SIZE, self.VOLUME_SHAPE[1:])
-        return T.sum(cost_var)
-
-
-class keras_malis_loss_fn_3d(object):
-    """
-    This class is supposed to be a wrapper for the malis cost, to be used
-    by Keras as a custom loss function. In other words, this object essentially
-    IS the cost function that you will pass directly into Keras.
-
-    VOLUME_SHAPE should be of dimensions [channels, depth, width, height]
+    VOLUME_SHAPE should be of dimensions 
+        [depth, width, height] for 3-d data and 
+        [width, height]        for 2-d data.
     """
     __name__ = "Keras_Malis_cost_3d"
     def __init__(self, BATCH_SIZE, VOLUME_SHAPE):
@@ -189,9 +168,12 @@ class keras_malis_loss_fn_3d(object):
     def __call__(self, gt_var, pred_var):
         # make malisOp variable
         gt_as_int = T.cast(gt_var, "int32")
-        # in the following, we do not pass the number of channels to malis_3d,
-        # we just assume the number of channels to be 1
-        cost_var = malis_3d(pred_var, gt_as_int, self.BATCH_SIZE, self.VOLUME_SHAPE[1:])
+        if len(self.VOLUME_SHAPE) == 2:
+            cost_var = malis_2d(pred_var, gt_as_int, self.BATCH_SIZE, self.VOLUME_SHAPE)
+        elif len(self.VOLUME_SHAPE) == 3:
+            cost_var = malis_3d(pred_var, gt_as_int, self.BATCH_SIZE, self.VOLUME_SHAPE)
+        else:
+            raise Exception("Volume shape should be of length 2 or 3")
         return T.sum(cost_var)
 
 

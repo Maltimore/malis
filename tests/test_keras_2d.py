@@ -2,7 +2,7 @@ from __future__ import print_function
 import theano
 import theano.tensor as T
 import numpy as np
-from malis.theano_op import keras_malis_loss_fn_2d
+from malis.theano_op import keras_malis_loss_fn
 import pdb
 import matplotlib.pyplot as plt
 from keras.models import Sequential
@@ -13,7 +13,7 @@ from keras.optimizers import SGD
 N_SAMPLES = 5
 EDG_PER_VOX = 2
 VOLUME_SHAPE = (1,5,6)
-EDGEVOL_SHAPE = (EDG_PER_VOX,) +  VOLUME_SHAPE
+EDGEVOL_SHAPE = (EDG_PER_VOX,) +  VOLUME_SHAPE[1:]
 DATA_SHAPE = (N_SAMPLES,) + VOLUME_SHAPE
 
 # create some test data
@@ -37,28 +37,30 @@ gt[4, 0, 2:, 3:] = 2
 # add some noise
 data = gt + np.random.normal(0, .1, size=DATA_SHAPE)
 
-
 eta = .01 #learning rate
 n_iterations = 2000
-keras_malis_loss = keras_malis_loss_fn_2d(N_SAMPLES, VOLUME_SHAPE)
+keras_malis_loss = keras_malis_loss_fn(N_SAMPLES, VOLUME_SHAPE[1:])
 
 # start model creation
 model = Sequential()
 model.add(Convolution2D(nb_filter=5,
                         nb_row=3,
                         nb_col=3,
-                        input_shape=VOLUME_SHAPE))
-
+                        input_shape=VOLUME_SHAPE,
+                        border_mode="same"))
 model.add(Activation("relu"))
-model.add(Flatten())
-model.add(Dense(np.prod(EDGEVOL_SHAPE)))
-model.add(Reshape(EDGEVOL_SHAPE))
+model.add(Convolution2D(nb_filter=2,
+                        nb_row=3,
+                        nb_col=3,
+                        input_shape=VOLUME_SHAPE,
+                        border_mode="same"))
+model.add(Activation("relu"))
 model.compile(optimizer="SGD",
               loss=keras_malis_loss)
-model.optimizer.lr.set_value(.01)
+model.optimizer.lr.set_value(eta)
 
 training_hist = model.fit(data,
-                        np.expand_dims(gt, -1),
+                        gt,
                         batch_size=3,
                         nb_epoch=n_iterations,
                         verbose=0)

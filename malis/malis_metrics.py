@@ -77,7 +77,7 @@ class MalisMetricsOp(theano.Op):
             if obj_label == 0:
                 continue
             count = np.sum(gt==obj_label)
-            current_count += count * (count-1) 
+            current_count += count * (count-1)
         max_pos_pairs[0] = current_count
         # max neg pairs:
         nonzero_voxels = np.sum(gt!=0)
@@ -101,7 +101,7 @@ class MalisMetricsOp(theano.Op):
                                                 batch_edges, 0)
         out_pos_pairs[0] = pos_pairs.sum()
         out_neg_pairs[0] = neg_pairs.sum()
-        
+
         pos_cost[0] = np.sum(pos_pairs * (1-edge_weights)**2)
         neg_cost[0] = np.sum(neg_pairs * (edge_weights)**2)
 
@@ -152,8 +152,8 @@ class keras_malis_metrics_fn(object):
     by Keras as a custom loss function. In other words, this object essentially
     IS the cost function that you will pass directly into Keras.
 
-    VOLUME_SHAPE should be of dimensions 
-        [depth, width, height] for 3-d data and 
+    VOLUME_SHAPE should be of dimensions
+        [depth, width, height] for 3-d data and
         [width, height]        for 2-d data.
     """
     __name__ = "Keras_Malis_cost_3d"

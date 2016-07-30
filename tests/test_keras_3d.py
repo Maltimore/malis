@@ -28,6 +28,7 @@ gt[1, 0, :, 3:, ...] = 2
 # third sample
 gt[2, 0, :, :2, ...] = 1
 gt[2, 0, :, 2:, ...] = 2
+gt[3:] = 3
 
 # create data from gt
 data=np.zeros(DATA_SHAPE)
@@ -43,13 +44,14 @@ data[1, 0, :, 4:, ...] = 1
 data[2, 0, :, :2, ...] = 1
 data[2, 0, :, 2, ...] = 0
 data[2, 0, :, 3:, ...] = 1
+data[3:] = 1
 
 
 # add some noise
 data += np.random.normal(loc=0, scale=.01, size=DATA_SHAPE)
 
 # start building classifier
-eta = .1 #learning rate
+eta = 0.1 #learning rate
 n_epochs = 2000
 keras_malis_loss = keras_malis_loss_fn(N_SAMPLES, VOLUME_SHAPE[1:])
 
@@ -75,11 +77,10 @@ model.add(Convolution3D(nb_filter=3,
                         kernel_dim3=3,
                         input_shape=VOLUME_SHAPE,
                         border_mode="same"))
-model.add(Activation("relu"))
+model.add(Activation("sigmoid"))
 sgd = SGD(lr=eta, momentum=0.5, nesterov=True)
 model.compile(optimizer="SGD",
               loss=keras_malis_loss)
-
 training_hist = model.fit(data,
                         gt,
                         batch_size=3,
@@ -108,5 +109,4 @@ plt.title("aff from gt")
 plt.subplot(133)
 plt.pcolor(pred_aff[1,1], cmap="gray")
 plt.title("predicted aff")
-
 plt.show()

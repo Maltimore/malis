@@ -1,4 +1,5 @@
 from __future__ import print_function
+import pdb
 import theano
 import theano.tensor as T
 import numpy as np
@@ -25,7 +26,7 @@ class MalisOp(theano.Op):
     #    positive-pair counts: int, size (num_batches, num_edges)
     #    negative-pair counts: int, size (num_batches, num_edges)
     # positive and negative pairs counts are hidden, used in grad
-    otypes = [T.fmatrix, T.imatrix, T.imatrix]
+    otypes = [T.fmatrix, T.imatrix, T.imatrix, T.imatrix, T.imatrix]
 
     # by default, only return the first output (per edge cost)
     default_output = 0
@@ -51,17 +52,19 @@ class MalisOp(theano.Op):
         # is the maximum number of pairs merged by an edge, which is N choose 2
         # for N = #voxels, and the number of edges is the product W*H*D
         self.normalization = comb(np.prod(volume_shape), 2)
+        self.max_pos_pairs = None
+        self.max_neg_pairs = None
 
         super(MalisOp, self).__init__()
 
     def infer_shape(self, node, input_shapes):
         # outputs are the same size as the first input (edge_weights)
-        return [input_shapes[0], input_shapes[0], input_shapes[0]]
+        return (input_shapes[0], input_shapes[0], input_shapes[0], input_shapes[0], input_shapes[0])
 
     # compute malis costs
     def perform(self, node, inputs, outputs):
         edge_weights, gt = inputs
-        cost, pos_pairs, neg_pairs = outputs
+        cost, pos_pairs, neg_pairs, max_pos_pairs, max_neg_pairs = outputs
 
         batch_size = gt.shape[0]
         # the following is recomputed every time because the batch size can
@@ -71,13 +74,34 @@ class MalisOp(theano.Op):
         # allocate outputs
         pos_pairs[0] = np.zeros(edge_weights.shape, dtype=np.int32)
         neg_pairs[0] = np.zeros(edge_weights.shape, dtype=np.int32)
+        max_pos_pairs[0] = np.ones(edge_weights.shape, dtype=np.int32)
+        max_neg_pairs[0] = np.ones(edge_weights.shape, dtype=np.int32)
 
         # extract outputs to simpler variable names
         pos_pairs = pos_pairs[0]
         neg_pairs = neg_pairs[0]
+        max_pos_pairs = max_pos_pairs[0]
+        max_neg_pairs = max_neg_pairs[0]
+
 
         # iterate over batches
         for batch_idx in range(batch_size):
+
+            # calculate max_pos_pairs and max_neg_pairs
+            # max_pos_pairs:
+            current_count = 0
+            for obj_label in np.unique(gt[batch_idx]):
+                if obj_label == 0:
+                    continue
+                count = np.sum(gt[batch_idx]==obj_label)
+                current_count += count * (count-1)
+            max_pos_pairs[batch_idx] = current_count + 1
+            # max neg pairs:
+            nonzero_voxels = np.sum(gt[batch_idx]!=0)
+            total_pairs = nonzero_voxels * (nonzero_voxels-1)
+            max_neg_pairs[batch_idx] = total_pairs - max_pos_pairs[batch_idx] + 2
+
+
             batch_edges = edge_weights[batch_idx, ...]
             batch_gt = gt[batch_idx, ...]
             batch_pos_pairs = pos_pairs[batch_idx, ...]
@@ -94,17 +118,14 @@ class MalisOp(theano.Op):
         cost[0] = ((pos_pairs * (edge_weights - 1) ** 2 +
                    neg_pairs * (edge_weights ** 2)) /
                    current_normalization).astype(np.float32)
+#        pdb.set_trace()
 
     def grad(self, inputs, gradient_in):
         edge_weights, gt = inputs
         costs = self(*inputs)
-        _, pos_pair_counts, neg_pair_counts = costs.owner.outputs
-
-        current_normalization = self.normalization * pos_pair_counts.shape[0]
-        dcost_dweights = 2 * (pos_pair_counts * (edge_weights - 1) + \
-                              neg_pair_counts * edge_weights) / \
-                              current_normalization
-
+        _, pos_pair_counts, neg_pair_counts, max_pos_pairs, max_neg_pairs = costs.owner.outputs
+        dcost_dweights = 2 * (pos_pair_counts * (edge_weights - 1) / max_pos_pairs + \
+                              neg_pair_counts * edge_weights / max_neg_pairs)
         # no gradient for ground truth
         return gradient_in[0] * dcost_dweights, theano.gradient.grad_undefined(self, 0, inputs[0].dtype)
 
@@ -155,8 +176,8 @@ class keras_malis_loss_fn(object):
     by Keras as a custom loss function. In other words, this object essentially
     IS the cost function that you will pass directly into Keras.
 
-    VOLUME_SHAPE should be of dimensions 
-        [depth, width, height] for 3-d data and 
+    VOLUME_SHAPE should be of dimensions
+        [depth, width, height] for 3-d data and
         [width, height]        for 2-d data.
     """
     __name__ = "Keras_Malis_cost_3d"

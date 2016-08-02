@@ -8,6 +8,7 @@ from scipy.special import comb
 
 int64_vector = T.TensorType(dtype="int64", broadcastable=(False, True))
 uint64_matrix = T.TensorType(dtype="uint64", broadcastable=(False, False))
+
 class MalisOp(theano.Op):
     '''Theano wrapper around the MALIS loss function.
 
@@ -61,7 +62,7 @@ class MalisOp(theano.Op):
 
     def infer_shape(self, node, input_shapes):
         # outputs are the same size as the first input (edge_weights)
-        return (input_shapes[0], input_shapes[0], input_shapes[0], (1, input_shapes[0][0]), (1, input_shapes[0][0]))
+        return (input_shapes[0], input_shapes[0], input_shapes[0], (input_shapes[0][0], 1), (input_shapes[0][0], 1))
 
     # compute malis costs
     def perform(self, node, inputs, outputs):
@@ -76,8 +77,8 @@ class MalisOp(theano.Op):
         # allocate outputs
         pos_pairs[0] = np.zeros(edge_weights.shape, dtype=np.uint64)
         neg_pairs[0] = np.zeros(edge_weights.shape, dtype=np.uint64)
-        max_pos_pairs[0] = np.ones((batch_size,), dtype=np.int64)
-        max_neg_pairs[0] = np.ones((batch_size,), dtype=np.int64)
+        max_pos_pairs[0] = np.ones((batch_size,1), dtype=np.int64)
+        max_neg_pairs[0] = np.ones((batch_size,1), dtype=np.int64)
 
         # extract outputs to simpler variable names
         pos_pairs = pos_pairs[0]
@@ -120,7 +121,6 @@ class MalisOp(theano.Op):
         cost[0] = ((pos_pairs * (edge_weights - 1) ** 2 +
                    neg_pairs * (edge_weights ** 2)) /
                    current_normalization).astype(np.float32)
-#        pdb.set_trace()
 
     def grad(self, inputs, gradient_in):
         edge_weights, gt = inputs

@@ -83,11 +83,10 @@ sum_cost_var = T.sum(cost_var)
 grad_var = T.grad(sum_cost_var, edge_var)
 compute_grad = theano.function([gt_var, edge_var], grad_var)
 grad = compute_grad(gt, edges)
-expected_grad = (-2 * n_m + 2 * 0.4 * (n_m + n_n))/normalization
+expected_grad = 2*(- n_m + 0.4 * (n_m + n_n))/normalization
 print ("gradient from theano: ", grad[0, 0, 3, 2, 2])
 print("analytically expected gradient: ", expected_grad)
 #assert np.allclose(grad[0, 0, 3, 2, 2], expected_grad)
-
 
 #########################
 # test phase 3

@@ -77,8 +77,8 @@ class MalisOp(theano.Op):
         # allocate outputs
         pos_pairs[0] = np.zeros(edge_weights.shape, dtype=np.uint64)
         neg_pairs[0] = np.zeros(edge_weights.shape, dtype=np.uint64)
-        max_pos_pairs[0] = np.ones((batch_size,1), dtype=np.int64)
-        max_neg_pairs[0] = np.ones((batch_size,1), dtype=np.int64)
+        max_pos_pairs[0] = np.zeros((batch_size,1), dtype=np.int64)
+        max_neg_pairs[0] = np.zeros((batch_size,1), dtype=np.int64)
 
         # extract outputs to simpler variable names
         pos_pairs = pos_pairs[0]
@@ -89,22 +89,6 @@ class MalisOp(theano.Op):
 
         # iterate over batches
         for batch_idx in range(batch_size):
-
-            # calculate max_pos_pairs and max_neg_pairs
-            # max_pos_pairs:
-            current_count = 0
-            for obj_label in np.unique(gt[batch_idx]):
-                if obj_label == 0:
-                    continue
-                count = np.sum(gt[batch_idx]==obj_label)
-                current_count += count * (count-1)
-            max_pos_pairs[batch_idx] = current_count + 1
-            # max neg pairs:
-            nonzero_voxels = np.sum(gt[batch_idx]!=0)
-            total_pairs = nonzero_voxels * (nonzero_voxels-1)
-            max_neg_pairs[batch_idx] = total_pairs - max_pos_pairs[batch_idx] + 2
-
-
             batch_edges = edge_weights[batch_idx, ...]
             batch_gt = gt[batch_idx, ...]
             batch_pos_pairs = pos_pairs[batch_idx, ...]
@@ -118,16 +102,52 @@ class MalisOp(theano.Op):
                                                 self.node_idx1,
                                                 self.node_idx2,
                                                 batch_edges, 0)
+
+
         cost[0] = ((pos_pairs * (edge_weights - 1) ** 2 +
                    neg_pairs * (edge_weights ** 2)) /
                    current_normalization).astype(np.float32)
+        # get the maximum number of positive and negative pairs 
+        max_pos_pairs[...] = np.expand_dims(np.sum(pos_pairs, axis=1), 1) + 1
+        max_neg_pairs[...] = np.expand_dims(np.sum(neg_pairs, axis=1), 1) + 1
+
+#        # DEBUG
+#        # calculate the total gradient in the next step
+#        pos_pair_gradient = pos_pairs * (edge_weights - 1) / max_pos_pairs
+#        neg_pair_gradient = neg_pairs * edge_weights       / max_neg_pairs
+#        total_gradient = 2 * (pos_pair_gradient + neg_pair_gradient)
+#        sum_total = np.sum(np.abs(total_gradient))
+#        print("avg. edge_w - 1: ", np.sum(np.abs(edge_weights - 1))/edge_weights.size)
+#        print("avg. edge_w : ", np.sum(np.abs(edge_weights))/edge_weights.size)
+#        print("max pos pairs: ", max_pos_pairs)
+#        print("sum pos pairs: ", np.sum(pos_pairs, axis=1))
+#        print("max neg pairs: ", max_neg_pairs)
+#        print("sum neg pairs: ", np.sum(neg_pairs, axis=1))
+#        print("pos_pairs/max_pos_pairs", np.sum(pos_pairs.astype(np.float64) / max_pos_pairs / batch_size))
+#        print("pos pair gradient", np.sum(np.abs(pos_pair_gradient)))
+#        print("neg pair gradient", np.sum(np.abs(neg_pair_gradient)))
+#        print("total gradient: ",  sum_total)
+#        if np.any(np.expand_dims(np.sum(neg_pairs, axis=1),1) > max_neg_pairs):
+#            print("Something went wrong! Number of neg pairs greater than max n neg pairs")
+#            pdb.set_trace()
+#        if np.any(np.expand_dims(np.sum(pos_pairs, axis=1),1) > max_pos_pairs):
+#            print("Something went wrong! Number of pos pairs greater than max n pos pairs")
+#            pdb.set_trace()
 
     def grad(self, inputs, gradient_in):
         edge_weights, gt = inputs
         costs = self(*inputs)
         _, pos_pair_counts, neg_pair_counts, max_pos_pairs, max_neg_pairs = costs.owner.outputs
-        dcost_dweights = 2 * (pos_pair_counts * (edge_weights - 1) / max_pos_pairs + \
-                              neg_pair_counts * edge_weights / max_neg_pairs)
+
+        pos_pair_counts_relative = T.cast(pos_pair_counts, "float64") / max_pos_pairs
+        neg_pair_counts_relative = T.cast(neg_pair_counts, "float64") / max_neg_pairs
+        pos_pair_gradient = pos_pair_counts_relative * (edge_weights - 1) 
+        neg_pair_gradient = neg_pair_counts_relative * edge_weights       
+
+        dcost_dweights = 2 * (pos_pair_gradient + neg_pair_gradient)
+
+        # clip the gradient
+#        dcost_dweights = T.clip(dcost_dweights, -1, 1)
         # no gradient for ground truth
         return gradient_in[0] * dcost_dweights, theano.gradient.grad_undefined(self, 0, inputs[0].dtype)
 

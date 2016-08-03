@@ -51,8 +51,8 @@ data[3:] = 1
 data += np.random.normal(loc=0, scale=.01, size=DATA_SHAPE)
 
 # start building classifier
-eta = 0.1 #learning rate
-n_epochs = 2000
+eta = 0.01 #learning rate
+n_epochs = 200
 keras_malis_loss = keras_malis_loss_fn(N_SAMPLES, VOLUME_SHAPE[1:])
 
 # start network creation
@@ -86,6 +86,7 @@ training_hist = model.fit(data,
                         batch_size=3,
                         nb_epoch=n_epochs,
                         verbose=0)
+
 plt.figure()
 plt.plot(training_hist.history['loss'])
 plt.xlabel("epochs")

@@ -2,7 +2,7 @@ from __future__ import print_function
 import theano
 import theano.tensor as T
 import numpy as np
-from malis.theano_op import keras_malis_loss_fn
+from malis.theano_op_old import keras_malis_loss_fn
 import pdb
 import matplotlib.pyplot as plt
 from keras.models import Sequential

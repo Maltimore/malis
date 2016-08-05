@@ -2,8 +2,7 @@ from __future__ import print_function
 import theano
 import theano.tensor as T
 import numpy as np
-from malis.theano_op import MalisOp
-from malis.theano_op import malis_3d
+from malis.theano_op import pair_counter, malis_metrics
 from scipy.special import comb
 import pdb
 
@@ -18,15 +17,17 @@ edges_node_idx_2 = edges_node_idx_1 + 1
 edge_weights = np.ones((1, edges_node_idx_1.size), dtype=np.float32) * 0.9
 edge_weights[0, 3] = 0.1
 
-mop = MalisOp(edges_node_idx_1, edges_node_idx_2, np.array([1,1,8]))
+mop = pair_counter(edges_node_idx_1, edges_node_idx_2, np.array([1,1,8]))
 
-w = T.fmatrix()
-gt = T.imatrix()
-cost = mop(w, gt)
-grad = T.grad(T.sum(cost), w)
+pred_var = T.fmatrix()
+gt_var = T.imatrix()
+pos_pairs, neg_pairs = mop(pred_var, gt_var)
+cost = T.sum(pred_var**2 * neg_pairs)  / T.sum(neg_pairs) + \
+             T.sum((1-pred_var)**2 * pos_pairs)/ T.sum(pos_pairs)
+grad = T.grad(T.sum(cost), pred_var)
 
-get_cost = theano.function([w, gt], cost)
-get_grad = theano.function([w, gt], grad)
+get_cost = theano.function([pred_var, gt_var], cost)
+get_grad = theano.function([pred_var, gt_var], grad)
 
 for idx in range(100):
     edge_weights -= 0.01 * get_grad(edge_weights, gt_labels)
@@ -59,11 +60,13 @@ gt_tensor_type = T.TensorType(dtype="int32", broadcastable=[False]*gt.ndim)
 gt_var = gt_tensor_type("gt_var")
 edge_tensor_type = T.TensorType(dtype="float32", broadcastable=[False]*edges.ndim)
 edge_var = edge_tensor_type("edge_var")
+pred = edge_var
 # make malisOp variable
-cost_var = malis_3d(edge_var, gt_var, gt.shape[0], gt.shape[1:])
+_, pos_pairs, neg_pairs = malis_metrics(gt.shape[1:], edge_var, gt_var)
+cost_var = (pred**2 * neg_pairs)  / T.sum(neg_pairs) + \
+             ((1-pred)**2 * pos_pairs)/ T.sum(pos_pairs)
 compute_cost = theano.function([edge_var, gt_var], cost_var, mode="DebugMode")
 cost = compute_cost(edges, gt)
-
 # analytical computation of the cost at the outlier edge
 normalization = comb(np.prod(gt.shape[1:]), 2)
 n_m  = 0 # number of matching pairs

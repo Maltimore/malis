@@ -2,13 +2,14 @@ from __future__ import print_function
 import theano
 import theano.tensor as T
 import numpy as np
-from malis.theano_op import keras_malis_loss_fn
+from malis.theano_op import keras_malis, malis_metrics_no_theano
 import pdb
 import matplotlib.pyplot as plt
 from keras.models import Sequential
 from keras.layers import Dense, Activation, Flatten, Reshape
 from keras.layers.convolutional import Convolution3D, MaxPooling2D
 from keras.optimizers import SGD
+na = np.newaxis
 
 N_SAMPLES = 6
 EDG_PER_VOX = 3
@@ -51,9 +52,10 @@ data[3:] = 1
 data += np.random.normal(loc=0, scale=.01, size=DATA_SHAPE)
 
 # start building classifier
-eta = 0.01 #learning rate
-n_epochs = 200
-keras_malis_loss = keras_malis_loss_fn(N_SAMPLES, VOLUME_SHAPE[1:])
+eta = 0.1 #learning rate
+n_epochs = 20
+iterations_per_epoch = 100
+keras_malis_loss = keras_malis(VOLUME_SHAPE[1:])
 
 # start network creation
 model = Sequential()
@@ -78,17 +80,26 @@ model.add(Convolution3D(nb_filter=3,
                         input_shape=VOLUME_SHAPE,
                         border_mode="same"))
 model.add(Activation("sigmoid"))
-sgd = SGD(lr=eta, momentum=0.5, nesterov=True)
+sgd = SGD(lr=eta, momentum=0.4, nesterov=True)
 model.compile(optimizer="SGD",
               loss=keras_malis_loss)
-training_hist = model.fit(data,
-                        gt,
-                        batch_size=3,
-                        nb_epoch=n_epochs,
-                        verbose=0)
+loss_history = np.empty((n_epochs))
+for epoch in range(n_epochs):
+    for i in range(iterations_per_epoch):
+        # train
+        training_hist = model.fit(data,
+                                gt,
+                                batch_size=1,
+                                nb_epoch=1,
+                                verbose=0)
+    # evaluate
+    pred = model.predict(data)
+    returndict = malis_metrics_no_theano(N_SAMPLES, VOLUME_SHAPE[1:], pred, gt)
+    print(returndict["malis_cost"])
+    loss_history[epoch] = returndict["malis_cost"]
 
 plt.figure()
-plt.plot(training_hist.history['loss'])
+plt.plot(loss_history)
 plt.xlabel("epochs")
 plt.ylabel("training loss")
 

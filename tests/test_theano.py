@@ -40,6 +40,9 @@ print(edge_weights)
 print("\nStarting Test 2")
 print("\nCreating data for which the segmentation (the edges) are already"\
       " pretty good, only one outlier isn't.")
+print("NOTE that the values that are printed in the following are not expected " \
+        "to match exactly since we used a slightly different normalization method "
+        "than in the original paper")
 # create some test data
 # two objects
 gt = np.zeros((1, 5, 6, 7), dtype=np.int32)
@@ -65,6 +68,7 @@ pred = edge_var
 _, pos_pairs, neg_pairs = malis_metrics(gt.shape[1:], edge_var, gt_var)
 cost_var = (pred**2 * neg_pairs)  / T.sum(neg_pairs) + \
              ((1-pred)**2 * pos_pairs)/ T.sum(pos_pairs)
+cost_var /= 2
 compute_cost = theano.function([edge_var, gt_var], cost_var, mode="DebugMode")
 cost = compute_cost(edges, gt)
 # analytical computation of the cost at the outlier edge

@@ -166,6 +166,12 @@ def malis_metrics_no_theano(batch_size, volume_shape, pred, gt):
 class keras_malis(object):
     __name__ = "keras_F_Rand"
     def __init__(self, volume_shape):
+        """ This function should be initialized with the
+        volume_shape: (depth, width, height),
+        and can be plugged as an objective function into keras directly.
+        Note that when passing the ground truth tensor into keras, it 
+        should have shape
+        (1, depth, width, height)"""
         self.volume_shape = volume_shape
 
     def __call__(self, gt, pred):

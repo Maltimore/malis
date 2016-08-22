@@ -84,6 +84,7 @@ sgd = SGD(lr=eta, momentum=0.4, nesterov=True)
 model.compile(optimizer="SGD",
               loss=keras_malis_loss)
 loss_history = np.empty((n_epochs))
+print("LOSS:")
 for epoch in range(n_epochs):
     for i in range(iterations_per_epoch):
         # train

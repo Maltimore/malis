@@ -7,8 +7,7 @@ void connected_components_cpp(const int nVert,
 
 void malis_loss_weights_cpp(const int nVert, const int* seg,
                const int nEdge, const int* node1, const int* node2, const float* edgeWeight,
-               const int pos,
-               uint64_t* nPairPerEdge);
+               uint64_t* nPosPairPerEdge, uint64_t* nNegPairPerEdge);
 
 void marker_watershed_cpp(const int nVert, const int* marker,
                const int nEdge, const int* node1, const int* node2, const float* edgeWeight,

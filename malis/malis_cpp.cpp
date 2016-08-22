@@ -29,8 +29,7 @@ class AffinityGraphCompare{
  */
 void malis_loss_weights_cpp(const int nVert, const int* seg,
                const int nEdge, const int* node1, const int* node2, const float* edgeWeight,
-               const int pos,
-               uint64_t* nPairPerEdge){
+               uint64_t* nPosPairPerEdge, uint64_t* nNegPairPerEdge){
 
 
     /* Disjoint sets and sparse overlap vectors */
@@ -81,10 +80,10 @@ void malis_loss_weights_cpp(const int nVert, const int* seg,
 
                     nPair = it1->second * it2->second;
 
-                    if (pos && (it1->first == it2->first)) {
-                        nPairPerEdge[e] += nPair;
-                    } else if ((!pos) && (it1->first != it2->first)) {
-                        nPairPerEdge[e] += nPair;
+                    if (it1->first == it2->first) {
+                        nPosPairPerEdge[e] += nPair;
+                    } else if (it1->first != it2->first) {
+                        nNegPairPerEdge[e] += nPair;
                     }
                 }
             }

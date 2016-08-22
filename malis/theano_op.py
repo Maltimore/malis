@@ -76,14 +76,10 @@ class pair_counter(theano.Op):
             batch_pos_pairs = pos_pairs[batch_idx, ...]
             batch_neg_pairs = neg_pairs[batch_idx, ...]
 
-            batch_pos_pairs[...] = m.malis_loss_weights(batch_gt,
+            batch_pos_pairs[...], batch_neg_pairs = m.malis_loss_weights(batch_gt,
                                                 self.node_idx1,
                                                 self.node_idx2,
-                                                batch_edges, 1)
-            batch_neg_pairs[...] = m.malis_loss_weights(batch_gt,
-                                                self.node_idx1,
-                                                self.node_idx2,
-                                                batch_edges, 0)
+                                                batch_edges)
 
     def grad(self, inputs, gradient_in):
         # since this function just computes the counts, the gradient should

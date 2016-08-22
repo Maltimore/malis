@@ -32,10 +32,6 @@ void malis_loss_weights_cpp(const int nVert, const int* seg,
                uint64_t* nPosPairPerEdge, uint64_t* nNegPairPerEdge,
 			   bool ignore_background = true,
 			   int counting_method = 0){
-    if (ignore_background == true){
-		// DEBUG !
-		cout << "ignoring background";
-	}
 
     /* Disjoint sets and sparse overlap vectors */
     vector<map<int,uint64_t> > overlap(nVert);

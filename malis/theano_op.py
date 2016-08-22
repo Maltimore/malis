@@ -33,7 +33,8 @@ class pair_counter(theano.Op):
 
     check_input = True
 
-    def __init__(self, node_idx1, node_idx2, volume_shape, ignore_background=False):
+    def __init__(self, node_idx1, node_idx2, volume_shape, ignore_background=False,
+                 counting_method=0):
         """
         node_idx1 and node_idx2 are the offset of voxels in an edge array,
         together they describe the edges between corresponding entries.
@@ -49,6 +50,7 @@ class pair_counter(theano.Op):
         self.node_idx2_id = id(node_idx2)
 
         self.ignore_background = ignore_background
+        self.counting_method = counting_method
 
         super(pair_counter, self).__init__()
 
@@ -82,7 +84,8 @@ class pair_counter(theano.Op):
                                                 self.node_idx1,
                                                 self.node_idx2,
                                                 batch_edges,
-                                                ignore_background=self.ignore_background)
+                                                ignore_background=self.ignore_background,
+                                                counting_method=self.counting_method)
 
     def grad(self, inputs, gradient_in):
         # since this function just computes the counts, the gradient should
@@ -90,7 +93,8 @@ class pair_counter(theano.Op):
         return inputs[0] * 0, theano.gradient.grad_undefined(self, 0, inputs[0].dtype)
 
 
-def NN_3d_pair_counter(volume_shape, affinities, ground_truth, radius=1):
+def NN_3d_pair_counter(volume_shape, affinities, ground_truth, radius=1, ignore_background=False,
+                       counting_method=0):
     '''Malis op wrapper for 3D
 
     affinities - float32 tensor of affinities with 5 dimensions: (batch, #local_edges, D, H, W)
@@ -101,7 +105,9 @@ def NN_3d_pair_counter(volume_shape, affinities, ground_truth, radius=1):
     nhood = m.mknhood3d(radius=radius)
     edges_shape = (nhood.shape[0],) + volume_shape
     node_idx_1, node_idx_2 = m.nodelist_like(volume_shape, nhood)
-    pair_counter_op = pair_counter(node_idx_1.ravel(), node_idx_2.ravel(), volume_shape)
+    pair_counter_op = pair_counter(node_idx_1.ravel(), node_idx_2.ravel(), volume_shape,
+                                   ignore_background=ignore_background,
+                                   counting_method=counting_method)
 
     flat_affinities = affinities.flatten(ndim=2)
     flat_gt = ground_truth.flatten(ndim=2)
@@ -111,7 +117,7 @@ def NN_3d_pair_counter(volume_shape, affinities, ground_truth, radius=1):
 
 
 
-def malis_metrics(volume_shape, pred, gt):
+def malis_metrics(volume_shape, pred, gt, ignore_background=False, counting_method=0):
     """
     This function is supposed to be a wrapper for the malis cost, to be used
     by Keras as a custom loss function. In other words, this object essentially
@@ -125,7 +131,9 @@ def malis_metrics(volume_shape, pred, gt):
     """
     # make malisOp variable
     gt_as_int = T.cast(gt, "int32")
-    pos_pairs, neg_pairs = NN_3d_pair_counter(volume_shape, pred, gt_as_int)
+    pos_pairs, neg_pairs = NN_3d_pair_counter(volume_shape, pred, gt_as_int,
+                                              ignore_background=ignore_background, 
+                                              counting_method=counting_method)
     
     sum_over_axes = tuple(np.arange(len(volume_shape)+1) +1)
     total_pos_pairs = T.sum(pos_pairs, axis=sum_over_axes) +1
@@ -137,7 +145,7 @@ def malis_metrics(volume_shape, pred, gt):
     return  malis_cost, pos_pairs, neg_pairs
 
 
-def malis_metrics_no_theano(batch_size, volume_shape, pred, gt):
+def malis_metrics_no_theano(batch_size, volume_shape, pred, gt, ignore_background=False, counting_method=0):
     """
     VOLUME_SHAPE should be of dimensions
         [width, height]        for 2-d data.# currently not supported
@@ -150,7 +158,9 @@ def malis_metrics_no_theano(batch_size, volume_shape, pred, gt):
     edge_tensor_type = T.TensorType(dtype="float32", broadcastable=[False]*pred.ndim)
     edge_var = edge_tensor_type("edge_var")
     # make malisOp variable
-    malis_cost_var, pos_pairs_var, neg_pairs_var = malis_metrics(volume_shape, edge_var, gt_var)
+    malis_cost_var, pos_pairs_var, neg_pairs_var = malis_metrics(volume_shape, edge_var, gt_var,
+                                                                 ignore_background=ignore_background,
+                                                                 counting_method=counting_method)
     compute_metrics = theano.function([edge_var, gt_var], [malis_cost_var, pos_pairs_var, neg_pairs_var])
     malis_cost, pos_pairs, neg_pairs = compute_metrics(pred, gt)
     malis_cost = malis_cost.sum() / batch_size
@@ -164,7 +174,7 @@ def malis_metrics_no_theano(batch_size, volume_shape, pred, gt):
 
 class keras_malis(object):
     __name__ = "keras_F_Rand"
-    def __init__(self, volume_shape):
+    def __init__(self, volume_shape, ignore_background=False, counting_method=0):
         """ This function should be initialized with the
         volume_shape: (depth, width, height),
         and can be plugged as an objective function into keras directly.
@@ -172,7 +182,11 @@ class keras_malis(object):
         should have shape
         (1, depth, width, height)"""
         self.volume_shape = volume_shape
+        self.ignore_background = ignore_background
+        self.counting_method = counting_method
 
     def __call__(self, gt, pred):
-        malis_cost, _, _ = malis_metrics(self.volume_shape, pred, gt)
+        malis_cost, _, _ = malis_metrics(self.volume_shape, pred, gt,
+                                         ignore_background=self.ignore_background,
+                                         counting_method=self.counting_method)
         return malis_cost

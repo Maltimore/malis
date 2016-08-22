@@ -26,6 +26,10 @@ def malis_loss_weights(np.ndarray[int, ndim=1] segTrue,
                 np.ndarray[float, ndim=1] edgeWeight,
                 bool ignore_background=False,
                 int counting_method=0):
+    # DEBUG
+#    print("Ignoring background: " + str(ignore_background))
+#    print("Counting method: " + str(counting_method))
+
     cdef int nVert = segTrue.shape[0]
     cdef int nEdge = node1.shape[0]
     segTrue = np.ascontiguousarray(segTrue)

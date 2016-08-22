@@ -6,6 +6,7 @@
 #include <queue>
 #include <map>
 #include <stdint.h>
+#include <math.h>
 using namespace std;
 
 template <class T>
@@ -83,8 +84,14 @@ void malis_loss_weights_cpp(const int nVert, const int* seg,
                     it1 != overlap[set1].end(); ++it1) {
                 for (it2 = overlap[set2].begin();
                         it2 != overlap[set2].end(); ++it2) {
-
-                    nPair = it1->second * it2->second;
+                    
+					if (counting_method == 0){
+						nPair = it1->second * it2->second;
+					} else if (counting_method == 1){
+						nPair = log(it1->second) * it2-> second + it1->second * log(it2->second);
+					}else if (counting_method == 2){
+						nPair = it1->second + it2->second;
+					}
 
                     if (it1->first == it2->first) {
 						if ((it1->first != 0) && (it2->first != 0))

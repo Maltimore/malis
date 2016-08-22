@@ -43,6 +43,15 @@ class pair_counter(theano.Op):
         for 2D data and
         [height, width, depth]
         for 3D data.
+
+        ignore background: if this is set to true, all voxels that have label 0
+                           in the ground truth (background voxels)are being ignored. If false,
+                           then background voxels are counted such that only their
+                           negative counts are considered.
+        counting method: how to count voxel pairs.
+                         0: group1 * group2
+                         1: log(group1) * group2 + group1 * log(group2)
+                         2: group1 + group2
         """
         self.node_idx1 = node_idx1.copy()
         self.node_idx2 = node_idx2.copy()
@@ -180,7 +189,17 @@ class keras_malis(object):
         and can be plugged as an objective function into keras directly.
         Note that when passing the ground truth tensor into keras, it 
         should have shape
-        (1, depth, width, height)"""
+        (1, depth, width, height)
+        
+        ignore background: if this is set to true, all voxels that have label 0
+                           in the ground truth (background voxels)are being ignored. If false,
+                           then background voxels are counted such that only their
+                           negative counts are considered.
+        counting method: how to count voxel pairs.
+                         0: group1 * group2
+                         1: log(group1) * group2 + group1 * log(group2)
+                         2: group1 + group2
+        """
         self.volume_shape = volume_shape
         self.ignore_background = ignore_background
         self.counting_method = counting_method

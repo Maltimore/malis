@@ -56,7 +56,9 @@ eta = 0.1 #learning rate
 n_epochs = 20
 iterations_per_epoch = 100
 ignore_background=False
-keras_malis_loss = keras_malis(VOLUME_SHAPE[1:], ignore_background=ignore_background)
+counting_method=1
+keras_malis_loss = keras_malis(VOLUME_SHAPE[1:], ignore_background=ignore_background,
+                               counting_method=counting_method)
 
 # start network creation
 model = Sequential()
@@ -97,7 +99,8 @@ for epoch in range(n_epochs):
     # evaluate
     pred = model.predict(data)
     returndict = malis_metrics_no_theano(N_SAMPLES, VOLUME_SHAPE[1:], pred, gt,
-                                         ignore_background=ignore_background)
+                                         ignore_background=ignore_background,
+                                         counting_method=counting_method)
     print(returndict["malis_cost"])
     loss_history[epoch] = returndict["malis_cost"]
 

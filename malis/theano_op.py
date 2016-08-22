@@ -33,7 +33,7 @@ class pair_counter(theano.Op):
 
     check_input = True
 
-    def __init__(self, node_idx1, node_idx2, volume_shape):
+    def __init__(self, node_idx1, node_idx2, volume_shape, ignore_background=False):
         """
         node_idx1 and node_idx2 are the offset of voxels in an edge array,
         together they describe the edges between corresponding entries.
@@ -47,6 +47,8 @@ class pair_counter(theano.Op):
         self.node_idx2 = node_idx2.copy()
         self.node_idx1_id = id(node_idx1)
         self.node_idx2_id = id(node_idx2)
+
+        self.ignore_background = ignore_background
 
         super(pair_counter, self).__init__()
 
@@ -79,7 +81,8 @@ class pair_counter(theano.Op):
             batch_pos_pairs[...], batch_neg_pairs[...] = m.malis_loss_weights(batch_gt,
                                                 self.node_idx1,
                                                 self.node_idx2,
-                                                batch_edges)
+                                                batch_edges,
+                                                ignore_background=self.ignore_background)
 
     def grad(self, inputs, gradient_in):
         # since this function just computes the counts, the gradient should

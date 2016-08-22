@@ -29,8 +29,13 @@ class AffinityGraphCompare{
  */
 void malis_loss_weights_cpp(const int nVert, const int* seg,
                const int nEdge, const int* node1, const int* node2, const float* edgeWeight,
-               uint64_t* nPosPairPerEdge, uint64_t* nNegPairPerEdge){
-
+               uint64_t* nPosPairPerEdge, uint64_t* nNegPairPerEdge,
+			   bool ignore_background = true,
+			   int counting_method = 0){
+    if (ignore_background == true){
+		// DEBUG !
+		cout << "ignoring background";
+	}
 
     /* Disjoint sets and sparse overlap vectors */
     vector<map<int,uint64_t> > overlap(nVert);
@@ -39,17 +44,22 @@ void malis_loss_weights_cpp(const int nVert, const int* seg,
     boost::disjoint_sets<int*, int*> dsets(&rank[0],&parent[0]);
     for (int i=0; i<nVert; ++i){
         dsets.make_set(i);
-        if (0!=seg[i]) {
-            overlap[i].insert(pair<int,uint64_t>(seg[i],1));
-        }
+		overlap[i].insert(pair<int,uint64_t>(seg[i],1));
     }
 
     /* Sort all the edges in increasing order of weight */
     std::vector< int > pqueue( nEdge );
     int j = 0;
     for ( int i = 0; i < nEdge; i++ ){
-        if ((node1[i]>=0) && (node1[i]<nVert) && (node2[i]>=0) && (node2[i]<nVert))
-	        pqueue[ j++ ] = i;
+        if ((node1[i]>=0) && (node1[i]<nVert) && (node2[i]>=0) && (node2[i]<nVert)){
+			if (ignore_background == true) {
+				if (seg[i]!=0){
+					pqueue[ j++ ] = i;
+				}
+			} else {
+				pqueue[ j++ ] = i;
+			}
+		}
     }
     unsigned long nValidEdge = j;
     pqueue.resize(nValidEdge);
@@ -81,7 +91,9 @@ void malis_loss_weights_cpp(const int nVert, const int* seg,
                     nPair = it1->second * it2->second;
 
                     if (it1->first == it2->first) {
-                        nPosPairPerEdge[e] += nPair;
+						if ((it1->first != 0) && (it2->first != 0))
+							/* only count positives pair that are not background voxels */
+							nPosPairPerEdge[e] += nPair;
                     } else if (it1->first != it2->first) {
                         nNegPairPerEdge[e] += nPair;
                     }

@@ -17,7 +17,7 @@ edges_node_idx_2 = edges_node_idx_1 + 1
 edge_weights = np.ones((1, edges_node_idx_1.size), dtype=np.float32) * 0.9
 edge_weights[0, 3] = 0.1
 
-mop = pair_counter(edges_node_idx_1, edges_node_idx_2, np.array([1,1,8]))
+mop = pair_counter(edges_node_idx_1, edges_node_idx_2, np.array([1,1,8]), ignore_background=False)
 
 pred_var = T.fmatrix()
 gt_var = T.imatrix()

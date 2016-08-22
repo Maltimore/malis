@@ -24,12 +24,12 @@ gt = np.zeros(DATA_SHAPE, dtype=np.int32)
 gt[0, 0, :3, ...] = 1
 gt[0, 0, 3:, ...] = 2
 # second sample
-gt[1, 0, :, :3, ...] = 1
+gt[1, 0, :, :3, ...] = 5
 gt[1, 0, :, 3:, ...] = 2
 # third sample
 gt[2, 0, :, :2, ...] = 1
 gt[2, 0, :, 2:, ...] = 2
-gt[3:] = 3
+gt[3:] = 0
 
 # create data from gt
 data=np.zeros(DATA_SHAPE)

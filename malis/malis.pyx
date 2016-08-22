@@ -1,14 +1,18 @@
 import numpy as np
+import pdb
 cimport numpy as np
 from scipy.misc import comb
 import scipy.sparse
 from libc cimport stdint
+from libcpp cimport bool
 ctypedef stdint.uint64_t uint64
 
 cdef extern from "malis_cpp.h":
     void malis_loss_weights_cpp(const int nVert, const int* segTrue,
                    const int nEdge, const int* node1, const int* node2, const float* edgeWeight,
-                   uint64* nPosPairPerEdge, uint64* nNegPairPerEdge);
+                   uint64* nPosPairPerEdge, uint64* nNegPairPerEdge,
+                   bool ignore_background,
+                   int counting_method);
     void connected_components_cpp(const int nVert,
                    const int nEdge, const int* node1, const int* node2, const int* edgeWeight,
                    int* seg);
@@ -19,7 +23,9 @@ cdef extern from "malis_cpp.h":
 def malis_loss_weights(np.ndarray[int, ndim=1] segTrue,
                 np.ndarray[int, ndim=1] node1,
                 np.ndarray[int, ndim=1] node2,
-                np.ndarray[float, ndim=1] edgeWeight):
+                np.ndarray[float, ndim=1] edgeWeight,
+                bool ignore_background=False,
+                int counting_method=0):
     cdef int nVert = segTrue.shape[0]
     cdef int nEdge = node1.shape[0]
     segTrue = np.ascontiguousarray(segTrue)
@@ -31,7 +37,9 @@ def malis_loss_weights(np.ndarray[int, ndim=1] segTrue,
     malis_loss_weights_cpp(nVert, &segTrue[0],
                    nEdge, &node1[0], &node2[0], &edgeWeight[0],
                    &nPosPairPerEdge[0],
-                   &nNegPairPerEdge[0]);
+                   &nNegPairPerEdge[0],
+                   ignore_background=ignore_background,
+                   counting_method=counting_method);
     return nPosPairPerEdge, nNegPairPerEdge
 
 

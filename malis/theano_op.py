@@ -126,7 +126,7 @@ def NN_3d_pair_counter(volume_shape, affinities, ground_truth, radius=1, ignore_
 
 
 
-def malis_metrics(volume_shape, pred, gt, ignore_background=False, counting_method=0):
+def malis_metrics(volume_shape, pred, gt, ignore_background=False, counting_method=0, m=0.1):
     """
     This function is supposed to be a wrapper for the malis cost, to be used
     by Keras as a custom loss function. In other words, this object essentially
@@ -137,16 +137,26 @@ def malis_metrics(volume_shape, pred, gt, ignore_background=False, counting_meth
         [depth, width, height] for 3-d data and
     pred: tensor, dimensions [batch_size, n_edges_per_voxel, depth, width, height]
     gt: tensor, dimensions [batch_size, depth, width, height]
+    m: scalar, margin for the loss function (predicted affinities in [0, m] and [1-m, 1] are ignored)
     """
     # make malisOp variable
     gt_as_int = T.cast(gt, "int32")
     pos_pairs, neg_pairs = NN_3d_pair_counter(volume_shape, pred, gt_as_int,
                                               ignore_background=ignore_background, 
                                               counting_method=counting_method)
+
+    # threshold affinities
+    pred = T.switch(T.and_(pred < m, pos_pairs < neg_pairs), 0., pred)
+    pred = T.switch(T.and_(pred > 1-m, pos_pairs > neg_pairs), 1., pred)
+
+    pos_pairs = T.switch(T.and_(pred < m, pos_pairs < neg_pairs), 1, pos_pairs)
+    neg_pairs = T.switch(T.and_(pred > 1-m, pos_pairs > neg_pairs), 1, neg_pairs)
     
     sum_over_axes = tuple(np.arange(len(volume_shape)+1) +1)
     total_pos_pairs = T.sum(pos_pairs, axis=sum_over_axes) +1
     total_neg_pairs = T.sum(neg_pairs, axis=sum_over_axes) +1
+
+
 
     malis_cost = T.sum(pred**2 * neg_pairs, axis=sum_over_axes)  / total_neg_pairs + \
                  T.sum((1-pred)**2 * pos_pairs, axis=sum_over_axes)/ total_pos_pairs
@@ -154,13 +164,14 @@ def malis_metrics(volume_shape, pred, gt, ignore_background=False, counting_meth
     return  malis_cost, pos_pairs, neg_pairs
 
 
-def malis_metrics_no_theano(batch_size, volume_shape, pred, gt, ignore_background=False, counting_method=0):
+def malis_metrics_no_theano(batch_size, volume_shape, pred, gt, ignore_background=False, counting_method=0, m=0.1):
     """
     VOLUME_SHAPE should be of dimensions
         [width, height]        for 2-d data.# currently not supported
         [depth, width, height] for 3-d data and
     pred: np.ndarray, dimensions [batch_size, n_edges_per_voxel, depth, width, height]
     gt: np.ndarray, dimensions [batch_size, depth, width, height]
+    m: scalar, margin for the loss function (predicted affinities in [0, m] and [1-m, 1] are ignored)
     """
     gt_tensor_type = T.TensorType(dtype="int32", broadcastable=[False]*gt.ndim)
     gt_var = gt_tensor_type("gt_var")
@@ -169,7 +180,8 @@ def malis_metrics_no_theano(batch_size, volume_shape, pred, gt, ignore_backgroun
     # make malisOp variable
     malis_cost_var, pos_pairs_var, neg_pairs_var = malis_metrics(volume_shape, edge_var, gt_var,
                                                                  ignore_background=ignore_background,
-                                                                 counting_method=counting_method)
+                                                                 counting_method=counting_method,
+                                                                 m=m)
     compute_metrics = theano.function([edge_var, gt_var], [malis_cost_var, pos_pairs_var, neg_pairs_var])
     malis_cost, pos_pairs, neg_pairs = compute_metrics(pred, gt)
     malis_cost = malis_cost.sum() / batch_size
@@ -183,7 +195,7 @@ def malis_metrics_no_theano(batch_size, volume_shape, pred, gt, ignore_backgroun
 
 class keras_malis(object):
     __name__ = "keras_F_Rand"
-    def __init__(self, volume_shape, ignore_background=False, counting_method=0):
+    def __init__(self, volume_shape, ignore_background=False, counting_method=0, m=.1):
         """ This function should be initialized with the
         volume_shape: (depth, width, height),
         and can be plugged as an objective function into keras directly.
@@ -199,13 +211,16 @@ class keras_malis(object):
                          0: group1 * group2
                          1: log(group1) * group2 + group1 * log(group2)
                          2: group1 + group2
+        m: scalar, margin for the loss function (predicted affinities in [0, m] and [1-m, 1] are ignored)
         """
         self.volume_shape = volume_shape
         self.ignore_background = ignore_background
         self.counting_method = counting_method
+        self.m = m
 
     def __call__(self, gt, pred):
         malis_cost, _, _ = malis_metrics(self.volume_shape, pred, gt,
                                          ignore_background=self.ignore_background,
-                                         counting_method=self.counting_method)
+                                         counting_method=self.counting_method,
+                                         m=self.m)
         return malis_cost

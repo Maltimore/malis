@@ -53,12 +53,11 @@ data += np.random.normal(loc=0, scale=.01, size=DATA_SHAPE)
 
 # start building classifier
 eta = 0.1 #learning rate
-n_epochs = 5
-iterations_per_epoch = 100
+n_epochs = 10
+iterations_per_epoch = 10
 ignore_background=False
-counting_method=1
-keras_malis_loss = keras_malis(VOLUME_SHAPE[1:], ignore_background=ignore_background,
-                               counting_method=counting_method, m=.1)
+counting_method=0
+m_parameter = .2
 
 # start network creation
 model = Sequential()
@@ -84,6 +83,8 @@ model.add(Convolution3D(nb_filter=3,
                         border_mode="same"))
 model.add(Activation("sigmoid"))
 sgd = SGD(lr=eta, momentum=0.4, nesterov=True)
+keras_malis_loss = keras_malis(VOLUME_SHAPE[1:], ignore_background=ignore_background,
+                               counting_method=counting_method, m=m_parameter)
 model.compile(optimizer=sgd,
               loss=keras_malis_loss)
 loss_history = np.empty((n_epochs))
@@ -101,14 +102,14 @@ for epoch in range(n_epochs):
     returndict = malis_metrics_no_theano(N_SAMPLES, VOLUME_SHAPE[1:], pred, gt,
                                          ignore_background=ignore_background,
                                          counting_method=counting_method,
-                                         m=0.300)
+                                         m=m_parameter)
     print(returndict["malis_cost"])
     loss_history[epoch] = returndict["malis_cost"]
 
 plt.figure()
 plt.plot(loss_history)
 plt.xlabel("epochs")
-plt.ylabel("training loss")
+plt.ylabel("thresholded training loss")
 
 
 

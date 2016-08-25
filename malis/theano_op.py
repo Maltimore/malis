@@ -146,11 +146,11 @@ def malis_metrics(volume_shape, pred, gt, ignore_background=False, counting_meth
                                               counting_method=counting_method)
 
     # threshold affinities
-    pred = T.switch(T.and_(pred < m, pos_pairs < neg_pairs), 0., pred)
-    pred = T.switch(T.and_(pred > 1-m, pos_pairs > neg_pairs), 1., pred)
-
-    pos_pairs = T.switch(T.and_(pred < m, pos_pairs < neg_pairs), 1, pos_pairs)
-    neg_pairs = T.switch(T.and_(pred > 1-m, pos_pairs > neg_pairs), 1, neg_pairs)
+    switch_mask = (T.or_(T.and_(pred < m, pos_pairs < neg_pairs), \
+                         T.and_(pred > 1-m, pos_pairs > neg_pairs)))
+    pred = T.switch(switch_mask, 0., pred)
+    pos_pairs = T.switch(switch_mask, 0, pos_pairs)
+    neg_pairs = T.switch(switch_mask, 0, neg_pairs)
     
     sum_over_axes = tuple(np.arange(len(volume_shape)+1) +1)
     total_pos_pairs = T.sum(pos_pairs, axis=sum_over_axes) +1

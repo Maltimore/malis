@@ -6,7 +6,7 @@ import numpy as np
 import malis as m
 from scipy.special import comb
 
-int64_vector = T.TensorType(dtype="int64", broadcastable=(False, True))
+int64_matrix = T.TensorType(dtype="int64", broadcastable=(False, False))
 uint64_matrix = T.TensorType(dtype="uint64", broadcastable=(False, False))
 
 class pair_counter(theano.Op):
@@ -21,9 +21,9 @@ class pair_counter(theano.Op):
 
     # inputs:
     #    edge weights: float, size (num_batches, num_edges)
-    #    ground truth: int, size (num_batches, num_nodes)
+    #    ground truth: int64, size (num_batches, num_nodes)
     #    (edge links are passed at construction and fixed
-    itypes = [T.fmatrix, T.imatrix]
+    itypes = [T.fmatrix, int64_matrix]
     # output:
     #    positive-pair counts: int, size (num_batches, num_edges)
     #    negative-pair counts: int, size (num_batches, num_edges)
@@ -126,23 +126,27 @@ def NN_3d_pair_counter(volume_shape, affinities, ground_truth, radius=1, ignore_
 
 
 
-def malis_metrics(volume_shape, pred, gt, ignore_background=False, counting_method=0, m=0.1):
+def malis_metrics(volume_shape, pred, gt, ignore_background=False, counting_method=0, m=0.1,
+                  separate_normalization=False):
     """
-    This function is supposed to be a wrapper for the malis cost, to be used
-    by Keras as a custom loss function. In other words, this object essentially
-    IS the cost function that you will pass directly into Keras.
-
     VOLUME_SHAPE should be of dimensions
         [width, height]        for 2-d data.# currently not supported
         [depth, width, height] for 3-d data and
     pred: tensor, dimensions [batch_size, n_edges_per_voxel, depth, width, height]
     gt: tensor, dimensions [batch_size, depth, width, height]
     m: scalar, margin for the loss function (predicted affinities in [0, m] and [1-m, 1] are ignored)
+    separate_normalization: bool, indicates whether to normalize pos and neg cost
+                            independently
+
+    returns: all theano tensors!
+    malis_cost: cost at each affinity
+    pos_pairs: number of pairs that were correctly merged by this edge
+    neg_pairs: number of pairs that were incorrectly merged by this edge
     """
     # make malisOp variable
-    gt_as_int = T.cast(gt, "int32")
+    gt_as_int = T.cast(gt, "int64")
     pos_pairs, neg_pairs = NN_3d_pair_counter(volume_shape, pred, gt_as_int,
-                                              ignore_background=ignore_background, 
+                                              ignore_background=ignore_background,
                                               counting_method=counting_method)
 
     # threshold affinities
@@ -151,20 +155,26 @@ def malis_metrics(volume_shape, pred, gt, ignore_background=False, counting_meth
     pred = T.switch(switch_mask, 0., pred)
     pos_pairs = T.switch(switch_mask, 0, pos_pairs)
     neg_pairs = T.switch(switch_mask, 0, neg_pairs)
-    
+
     sum_over_axes = tuple(np.arange(len(volume_shape)+1) +1)
     total_pos_pairs = T.sum(pos_pairs, axis=sum_over_axes) +1
     total_neg_pairs = T.sum(neg_pairs, axis=sum_over_axes) +1
+    total_pairs = total_pos_pairs + total_neg_pairs
 
+    if separate_normalization == True:
+        malis_cost = T.sum(pred**2 * neg_pairs, axis=sum_over_axes)  / total_neg_pairs + \
+                    T.sum((1-pred)**2 * pos_pairs, axis=sum_over_axes)/ total_pos_pairs
+        malis_cost = malis_cost / 2
+    elif separate_normalization == False:
+        malis_cost = T.sum(pred**2 * neg_pairs + (1-pred)**2 * pos_pairs, axis=sum_over_axes) \
+            / total_pairs
+        malis_cost = malis_cost / 2
 
-
-    malis_cost = T.sum(pred**2 * neg_pairs, axis=sum_over_axes)  / total_neg_pairs + \
-                 T.sum((1-pred)**2 * pos_pairs, axis=sum_over_axes)/ total_pos_pairs
-    malis_cost = malis_cost / 2
     return  malis_cost, pos_pairs, neg_pairs
 
 
-def malis_metrics_no_theano(batch_size, volume_shape, pred, gt, ignore_background=False, counting_method=0, m=0.1):
+def malis_metrics_no_theano(batch_size, volume_shape, pred, gt, ignore_background=False, counting_method=0, m=0.1,
+                            separate_normalization=False):
     """
     VOLUME_SHAPE should be of dimensions
         [width, height]        for 2-d data.# currently not supported
@@ -173,15 +183,20 @@ def malis_metrics_no_theano(batch_size, volume_shape, pred, gt, ignore_backgroun
     gt: np.ndarray, dimensions [batch_size, depth, width, height]
     m: scalar, margin for the loss function (predicted affinities in [0, m] and [1-m, 1] are ignored)
     """
-    gt_tensor_type = T.TensorType(dtype="int32", broadcastable=[False]*gt.ndim)
+    pred = pred.astype(np.float32)
+    gt = gt.astype(np.int64)
+    gt_tensor_type = T.TensorType(dtype="int64", broadcastable=[False]*gt.ndim)
     gt_var = gt_tensor_type("gt_var")
     edge_tensor_type = T.TensorType(dtype="float32", broadcastable=[False]*pred.ndim)
     edge_var = edge_tensor_type("edge_var")
     # make malisOp variable
-    malis_cost_var, pos_pairs_var, neg_pairs_var = malis_metrics(volume_shape, edge_var, gt_var,
-                                                                 ignore_background=ignore_background,
-                                                                 counting_method=counting_method,
-                                                                 m=m)
+    malis_cost_var, pos_pairs_var, neg_pairs_var = malis_metrics(volume_shape,
+                                    edge_var,
+                                    gt_var,
+                                    ignore_background=ignore_background,
+                                    counting_method=counting_method,
+                                    m=m,
+                                    separate_normalization=separate_normalization)
     compute_metrics = theano.function([edge_var, gt_var], [malis_cost_var, pos_pairs_var, neg_pairs_var])
     malis_cost, pos_pairs, neg_pairs = compute_metrics(pred, gt)
     malis_cost = malis_cost.sum() / batch_size
@@ -195,14 +210,15 @@ def malis_metrics_no_theano(batch_size, volume_shape, pred, gt, ignore_backgroun
 
 class keras_malis(object):
     __name__ = "keras_F_Rand"
-    def __init__(self, volume_shape, ignore_background=False, counting_method=0, m=.1):
+    def __init__(self, volume_shape, ignore_background=False, counting_method=0, m=.1,
+                 separate_normalization=False):
         """ This function should be initialized with the
         volume_shape: (depth, width, height),
         and can be plugged as an objective function into keras directly.
-        Note that when passing the ground truth tensor into keras, it 
+        Note that when passing the ground truth tensor into keras, it
         should have shape
         (1, depth, width, height)
-        
+
         ignore background: if this is set to true, all voxels that have label 0
                            in the ground truth (background voxels)are being ignored. If false,
                            then background voxels are counted such that only their
@@ -217,10 +233,12 @@ class keras_malis(object):
         self.ignore_background = ignore_background
         self.counting_method = counting_method
         self.m = m
+        self.separate_normalization=separate_normalization
 
     def __call__(self, gt, pred):
         malis_cost, _, _ = malis_metrics(self.volume_shape, pred, gt,
                                          ignore_background=self.ignore_background,
                                          counting_method=self.counting_method,
-                                         m=self.m)
+                                         m=self.m,
+                                         separate_normalization=self.separate_normalization)
         return malis_cost

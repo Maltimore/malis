@@ -6,6 +6,8 @@ from malis.theano_op import pair_counter, malis_metrics
 from scipy.special import comb
 import pdb
 
+int64_matrix = T.TensorType(dtype="int64", broadcastable=(False, False))
+
 #########################
 # test phase 1
 print("\nStarting test 1")
@@ -20,7 +22,7 @@ edge_weights[0, 3] = 0.1
 mop = pair_counter(edges_node_idx_1, edges_node_idx_2, np.array([1,1,8]), ignore_background=False)
 
 pred_var = T.fmatrix()
-gt_var = T.imatrix()
+gt_var = int64_matrix()
 pos_pairs, neg_pairs = mop(pred_var, gt_var)
 cost = T.sum(pred_var**2 * neg_pairs)  / T.sum(neg_pairs) + \
              T.sum((1-pred_var)**2 * pos_pairs)/ T.sum(pos_pairs)
@@ -45,7 +47,7 @@ print("NOTE that the values that are printed in the following are not expected "
         "than in the original paper")
 # create some test data
 # two objects
-gt = np.zeros((1, 5, 6, 7), dtype=np.int32)
+gt = np.zeros((1, 5, 6, 7), dtype=np.int64)
 gt[0, :3, ...] = 1
 gt[0, 3:, ...] = 2
 
@@ -59,7 +61,7 @@ edges[0, 0, 3, 2, 2] = 0.4
 # result should be that cost at that edge is high
 
 # register theano variables
-gt_tensor_type = T.TensorType(dtype="int32", broadcastable=[False]*gt.ndim)
+gt_tensor_type = T.TensorType(dtype="int64", broadcastable=[False]*gt.ndim)
 gt_var = gt_tensor_type("gt_var")
 edge_tensor_type = T.TensorType(dtype="float32", broadcastable=[False]*edges.ndim)
 edge_var = edge_tensor_type("edge_var")

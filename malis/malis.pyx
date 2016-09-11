@@ -8,7 +8,7 @@ from libcpp cimport bool
 ctypedef stdint.uint64_t uint64
 
 cdef extern from "malis_cpp.h":
-    void malis_loss_weights_cpp(const int nVert, const int* segTrue,
+    void malis_loss_weights_cpp(const int nVert, const np.int64_t* segTrue,
                    const int nEdge, const int* node1, const int* node2, const float* edgeWeight,
                    uint64* nPosPairPerEdge, uint64* nNegPairPerEdge,
                    bool ignore_background,
@@ -20,7 +20,7 @@ cdef extern from "malis_cpp.h":
                    const int nEdge, const int* node1, const int* node2, const float* edgeWeight,
                    int* seg);
 
-def malis_loss_weights(np.ndarray[int, ndim=1] segTrue,
+def malis_loss_weights(np.ndarray[np.int64_t, ndim=1] segTrue,
                 np.ndarray[int, ndim=1] node1,
                 np.ndarray[int, ndim=1] node2,
                 np.ndarray[float, ndim=1] edgeWeight,

@@ -19,7 +19,7 @@ DATA_SHAPE = (N_SAMPLES,) + VOLUME_SHAPE
 
 # create some test data
 # two objects
-gt = np.zeros(DATA_SHAPE, dtype=np.int32)
+gt = np.zeros(DATA_SHAPE, dtype=np.int64)
 # first sample
 gt[0, 0, :3, ...] = 1
 gt[0, 0, 3:, ...] = 2
@@ -57,7 +57,7 @@ n_epochs = 10
 iterations_per_epoch = 10
 ignore_background=False
 counting_method=0
-m_parameter = .2
+m_parameter = .1
 
 # start network creation
 model = Sequential()
@@ -84,7 +84,8 @@ model.add(Convolution3D(nb_filter=3,
 model.add(Activation("sigmoid"))
 sgd = SGD(lr=eta, momentum=0.4, nesterov=True)
 keras_malis_loss = keras_malis(VOLUME_SHAPE[1:], ignore_background=ignore_background,
-                               counting_method=counting_method, m=m_parameter)
+                               counting_method=counting_method, m=m_parameter,
+                               separate_normalization=False)
 model.compile(optimizer=sgd,
               loss=keras_malis_loss)
 loss_history = np.empty((n_epochs))
@@ -103,8 +104,8 @@ for epoch in range(n_epochs):
                                          ignore_background=ignore_background,
                                          counting_method=counting_method,
                                          m=m_parameter)
-    print(returndict["malis_cost"])
     loss_history[epoch] = returndict["malis_cost"]
+    print(returndict["malis_cost"])
 
 plt.figure()
 plt.plot(loss_history)

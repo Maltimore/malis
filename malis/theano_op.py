@@ -127,16 +127,19 @@ def NN_3d_pair_counter(volume_shape, affinities, ground_truth, radius=1, ignore_
 
 
 def malis_metrics(volume_shape, pred, gt, ignore_background=False, counting_method=0, m=0.1,
-                  separate_normalization=False):
+                  separate_normalization=False, pos_cost_weight=0.2):
     """
     VOLUME_SHAPE should be of dimensions
         [width, height]        for 2-d data.# currently not supported
         [depth, width, height] for 3-d data and
     pred: tensor, dimensions [batch_size, n_edges_per_voxel, depth, width, height]
     gt: tensor, dimensions [batch_size, depth, width, height]
-    m: scalar, margin for the loss function (predicted affinities in [0, m] and [1-m, 1] are ignored)
+    m: scalar in [0, 1]. 
+       margin for the loss function (predicted affinities in [0, m] and [1-m, 1] are ignored)
     separate_normalization: bool, indicates whether to normalize pos and neg cost
                             independently
+    pos_cost_weight: scalar in [0, 1]. 
+                     Indicates how much to weigh positive cost compared to negative cost.
 
     returns: all theano tensors!
     malis_cost: cost at each affinity
@@ -162,19 +165,18 @@ def malis_metrics(volume_shape, pred, gt, ignore_background=False, counting_meth
     total_pairs = total_pos_pairs + total_neg_pairs
 
     if separate_normalization == True:
-        malis_cost = T.sum(pred**2 * neg_pairs, axis=sum_over_axes)  / total_neg_pairs + \
-                    T.sum((1-pred)**2 * pos_pairs, axis=sum_over_axes)/ total_pos_pairs
-        malis_cost = malis_cost / 2
+        pos_cost = T.sum((1-pred)**2 * pos_pairs, axis=sum_over_axes) / total_pos_pairs
+        neg_cost = T.sum(pred**2 * neg_pairs, axis=sum_over_axes)  / total_neg_pairs
     elif separate_normalization == False:
-        malis_cost = T.sum(pred**2 * neg_pairs + (1-pred)**2 * pos_pairs, axis=sum_over_axes) \
-            / total_pairs
-        malis_cost = malis_cost / 2
+        pos_cost = T.sum((1-pred)**2 * pos_pairs, axis=sum_over_axes) / total_pairs
+        neg_cost = T.sum(pred**2 * neg_pairs, axis=sum_over_axes)  / total_pairs
 
+    malis_cost = pos_cost_weight * pos_cost + (1-pos_cost_weight) * neg_cost
     return  malis_cost, pos_pairs, neg_pairs
 
 
 def malis_metrics_no_theano(batch_size, volume_shape, pred, gt, ignore_background=False, counting_method=0, m=0.1,
-                            separate_normalization=False):
+                            separate_normalization=False, pos_cost_weight=0.5):
     """
     VOLUME_SHAPE should be of dimensions
         [width, height]        for 2-d data.# currently not supported
@@ -182,6 +184,8 @@ def malis_metrics_no_theano(batch_size, volume_shape, pred, gt, ignore_backgroun
     pred: np.ndarray, dimensions [batch_size, n_edges_per_voxel, depth, width, height]
     gt: np.ndarray, dimensions [batch_size, depth, width, height]
     m: scalar, margin for the loss function (predicted affinities in [0, m] and [1-m, 1] are ignored)
+    pos_cost_weight: scalar in [0, 1]. 
+                     Indicates how much to weigh positive cost compared to negative cost.
     """
     pred = pred.astype(np.float32)
     gt = gt.astype(np.int64)
@@ -196,7 +200,8 @@ def malis_metrics_no_theano(batch_size, volume_shape, pred, gt, ignore_backgroun
                                     ignore_background=ignore_background,
                                     counting_method=counting_method,
                                     m=m,
-                                    separate_normalization=separate_normalization)
+                                    separate_normalization=separate_normalization,
+                                    pos_cost_weight=pos_cost_weight)
     compute_metrics = theano.function([edge_var, gt_var], [malis_cost_var, pos_pairs_var, neg_pairs_var])
     malis_cost, pos_pairs, neg_pairs = compute_metrics(pred, gt)
     malis_cost = malis_cost.sum() / batch_size
@@ -211,7 +216,7 @@ def malis_metrics_no_theano(batch_size, volume_shape, pred, gt, ignore_backgroun
 class keras_malis(object):
     __name__ = "keras_F_Rand"
     def __init__(self, volume_shape, ignore_background=False, counting_method=0, m=.1,
-                 separate_normalization=False):
+                 separate_normalization=False, pos_cost_weight=0.5):
         """ This function should be initialized with the
         volume_shape: (depth, width, height),
         and can be plugged as an objective function into keras directly.
@@ -228,17 +233,21 @@ class keras_malis(object):
                          1: log(group1) * group2 + group1 * log(group2)
                          2: group1 + group2
         m: scalar, margin for the loss function (predicted affinities in [0, m] and [1-m, 1] are ignored)
+        pos_cost_weight: scalar in [0, 1]. 
+                         Indicates how much to weigh positive cost compared to negative cost.
         """
         self.volume_shape = volume_shape
         self.ignore_background = ignore_background
         self.counting_method = counting_method
         self.m = m
         self.separate_normalization=separate_normalization
+        self.pos_cost_weight=pos_cost_weight
 
     def __call__(self, gt, pred):
         malis_cost, _, _ = malis_metrics(self.volume_shape, pred, gt,
                                          ignore_background=self.ignore_background,
                                          counting_method=self.counting_method,
                                          m=self.m,
-                                         separate_normalization=self.separate_normalization)
+                                         separate_normalization=self.separate_normalization,
+                                         pos_cost_weight=self.pos_cost_weight)
         return malis_cost

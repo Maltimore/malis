@@ -56,8 +56,10 @@ eta = 0.1 #learning rate
 n_epochs = 10
 iterations_per_epoch = 10
 ignore_background=False
-counting_method=0
-m_parameter = .1
+counting_method=1
+m_parameter = .2
+separate_normalization=True
+pos_cost_weight=.5
 
 # start network creation
 model = Sequential()
@@ -83,9 +85,11 @@ model.add(Convolution3D(nb_filter=3,
                         border_mode="same"))
 model.add(Activation("sigmoid"))
 sgd = SGD(lr=eta, momentum=0.4, nesterov=True)
-keras_malis_loss = keras_malis(VOLUME_SHAPE[1:], ignore_background=ignore_background,
+keras_malis_loss = keras_malis(VOLUME_SHAPE[1:], 
+                               ignore_background=ignore_background,
                                counting_method=counting_method, m=m_parameter,
-                               separate_normalization=False)
+                               separate_normalization=separate_normalization,
+                               pos_cost_weight=pos_cost_weight)
 model.compile(optimizer=sgd,
               loss=keras_malis_loss)
 loss_history = np.empty((n_epochs))

@@ -127,7 +127,7 @@ def NN_3d_pair_counter(volume_shape, affinities, ground_truth, radius=1, ignore_
 
 
 def malis_metrics(volume_shape, pred, gt, ignore_background=False, counting_method=0, m=0.1,
-                  separate_normalization=False, pos_cost_weight=0.2):
+                  separate_normalization=False, pos_cost_weight=0.2, return_pos_neg_cost=False):
     """
     VOLUME_SHAPE should be of dimensions
         [width, height]        for 2-d data.# currently not supported
@@ -172,7 +172,11 @@ def malis_metrics(volume_shape, pred, gt, ignore_background=False, counting_meth
         neg_cost = T.sum(pred**2 * neg_pairs, axis=sum_over_axes)  / total_pairs
 
     malis_cost = pos_cost_weight * pos_cost + (1-pos_cost_weight) * neg_cost
-    return  malis_cost, pos_pairs, neg_pairs
+
+    if return_pos_neg_cost:
+        return  malis_cost, pos_pairs, neg_pairs, pos_cost, neg_cost
+    else:
+        return  malis_cost, pos_pairs, neg_pairs
 
 
 def malis_metrics_no_theano(batch_size, volume_shape, pred, gt, ignore_background=False, counting_method=0, m=0.1,
@@ -194,23 +198,27 @@ def malis_metrics_no_theano(batch_size, volume_shape, pred, gt, ignore_backgroun
     edge_tensor_type = T.TensorType(dtype="float32", broadcastable=[False]*pred.ndim)
     edge_var = edge_tensor_type("edge_var")
     # make malisOp variable
-    malis_cost_var, pos_pairs_var, neg_pairs_var = malis_metrics(volume_shape,
+    malis_cost_var, pos_pairs_var, neg_pairs_var, pos_cost_var, neg_cost_var = malis_metrics(volume_shape,
                                     edge_var,
                                     gt_var,
                                     ignore_background=ignore_background,
                                     counting_method=counting_method,
                                     m=m,
                                     separate_normalization=separate_normalization,
-                                    pos_cost_weight=pos_cost_weight)
-    compute_metrics = theano.function([edge_var, gt_var], [malis_cost_var, pos_pairs_var, neg_pairs_var])
-    malis_cost, pos_pairs, neg_pairs = compute_metrics(pred, gt)
+                                    pos_cost_weight=pos_cost_weight,
+                                    return_pos_neg_cost=True)
+    compute_metrics = theano.function([edge_var, gt_var], [malis_cost_var, pos_pairs_var, neg_pairs_var, pos_cost_var, neg_cost_var])
+    malis_cost, pos_pairs, neg_pairs, pos_cost, neg_cost = compute_metrics(pred, gt)
     malis_cost = malis_cost.sum() / batch_size
     returndict = {
             "malis_cost": malis_cost,
             "pos_pairs": pos_pairs,
             "neg_pairs": neg_pairs,
             "pred_aff": pred,
-            "gt": gt}
+            "gt": gt,
+            "pos_cost": pos_cost,
+            "neg_cost": neg_cost
+            }
     return returndict
 
 class keras_malis(object):

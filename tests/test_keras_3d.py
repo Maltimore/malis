@@ -59,7 +59,7 @@ ignore_background=False
 counting_method=1
 m_parameter = .2
 separate_normalization=True
-pos_cost_weight=.5
+pos_cost_weight=.2
 
 # start network creation
 model = Sequential()

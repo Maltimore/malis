@@ -56,10 +56,10 @@ eta = 0.1 #learning rate
 n_epochs = 10
 iterations_per_epoch = 10
 ignore_background=False
-counting_method=1
+counting_method=0
 m_parameter = .2
 separate_normalization=True
-pos_cost_weight=.2
+pos_cost_weight=.3
 
 # start network creation
 model = Sequential()
@@ -104,7 +104,7 @@ for epoch in range(n_epochs):
                                 verbose=0)
     # evaluate
     pred = model.predict(data)
-    returndict = malis_metrics_no_theano(N_SAMPLES, VOLUME_SHAPE[1:], pred, gt,
+    returndict = malis_metrics_no_theano(pred, gt,
                                          ignore_background=ignore_background,
                                          counting_method=counting_method,
                                          m=m_parameter)

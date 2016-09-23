@@ -90,6 +90,12 @@ keras_malis_loss = keras_malis(VOLUME_SHAPE[1:],
                                counting_method=counting_method, m=m_parameter,
                                separate_normalization=separate_normalization,
                                pos_cost_weight=pos_cost_weight)
+
+compute_malis_metrics = malis_metrics_no_theano(volume_shape=VOLUME_SHAPE[1:],
+                                                ignore_background=ignore_background,
+                                                counting_method=counting_method,
+                                                m=m_parameter)
+
 model.compile(optimizer=sgd,
               loss=keras_malis_loss)
 loss_history = np.empty((n_epochs))
@@ -104,10 +110,7 @@ for epoch in range(n_epochs):
                                 verbose=0)
     # evaluate
     pred = model.predict(data)
-    returndict = malis_metrics_no_theano(pred, gt,
-                                         ignore_background=ignore_background,
-                                         counting_method=counting_method,
-                                         m=m_parameter)
+    returndict = compute_malis_metrics(pred, gt)
     loss_history[epoch] = returndict["malis_cost"]
     print(returndict["malis_cost"])
 

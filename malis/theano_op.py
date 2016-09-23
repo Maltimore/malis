@@ -179,85 +179,91 @@ def malis_metrics(volume_shape, pred, gt, ignore_background=False, counting_meth
         return  malis_cost, pos_pairs, neg_pairs
 
 
-def malis_metrics_no_theano(pred, gt, ignore_background=False, counting_method=0, m=0.1,
-                            separate_normalization=False, pos_cost_weight=0.5):
-    """
-    pred:                   np.ndarray, dimensions [batch_size, n_edges_per_voxel, depth, width, height]
+class malis_metrics_no_theano(object):
+    def __init__(self, volume_shape, ignore_background=False, counting_method=0, m=0.1,
+                 separate_normalization=False, pos_cost_weight=0.5):
+        """
+        volume_shape:           tuple, should be (depth, width, height)
+        ignore background:      if this is set to true, all voxels that have label 0
+                                in the ground truth (background voxels)are being ignored. If false,
+                                then background voxels are counted such that only their
+                                negative counts are considered.
 
-    gt:                     np.ndarray, dimensions [batch_size, depth, width, height]
+        counting method:        how to count voxel pairs.
+                                0: group1 * group2
+                                1: log(group1) * group2 + group1 * log(group2)
+                                2: group1 + group2
 
-    ignore background:      if this is set to true, all voxels that have label 0
-                            in the ground truth (background voxels)are being ignored. If false,
-                            then background voxels are counted such that only their
-                            negative counts are considered.
+        m:                      scalar, margin for the loss function (predicted affinities in [0, m] and [1-m, 1] are ignored)
 
-    counting method:        how to count voxel pairs.
-                            0: group1 * group2
-                            1: log(group1) * group2 + group1 * log(group2)
-                            2: group1 + group2
+        separate_normalization: bool
+                                whether to normalize the positive and negative cost independently
 
-    m:                      scalar, margin for the loss function (predicted affinities in [0, m] and [1-m, 1] are ignored)
+        pos_cost_weight:        scalar in [0, 1]. 
+                                Indicates how much to weigh positive cost compared to negative cost.
+        """
+        
 
-    separate_normalization: bool
-                            whether to normalize the positive and negative cost independently
+        # create tensor variables
+        gt_tensor_type = T.TensorType(dtype="int64", broadcastable=[False]*(len(volume_shape)+2))
+        gt_var = gt_tensor_type("gt_var")
+        edge_tensor_type = T.TensorType(dtype="float32", broadcastable=[False]*(len(volume_shape)+2))
+        edge_var = edge_tensor_type("edge_var")
 
-    pos_cost_weight:        scalar in [0, 1]. 
-                            Indicates how much to weigh positive cost compared to negative cost.
-    """
-    
-    # extract batch size and volume shape
-    batch_size = pred.shape[0]
-    volume_shape = pred.shape[2:]
+        # make malisOp variable
+        malis_cost_var, pos_pairs_var, neg_pairs_var, pos_cost_var, neg_cost_var = malis_metrics( \
+                                        volume_shape,
+                                        edge_var,
+                                        gt_var,
+                                        ignore_background=ignore_background,
+                                        counting_method=counting_method,
+                                        m=m,
+                                        separate_normalization=separate_normalization,
+                                        pos_cost_weight=pos_cost_weight,
+                                        return_pos_neg_cost=True)
 
-    # cast pred and gt to float32 and int64 respectively
-    pred = pred.astype(np.float32)
-    gt = gt.astype(np.int64)
+        # compile compute_metrics function
+        self.compute_metrics = theano.function([edge_var, gt_var], 
+                                          [malis_cost_var, pos_pairs_var, neg_pairs_var, pos_cost_var, neg_cost_var])
 
-    # create tensor variables
-    gt_tensor_type = T.TensorType(dtype="int64", broadcastable=[False]*gt.ndim)
-    gt_var = gt_tensor_type("gt_var")
-    edge_tensor_type = T.TensorType(dtype="float32", broadcastable=[False]*pred.ndim)
-    edge_var = edge_tensor_type("edge_var")
 
-    # make malisOp variable
-    malis_cost_var, pos_pairs_var, neg_pairs_var, pos_cost_var, neg_cost_var = malis_metrics(volume_shape,
-                                    edge_var,
-                                    gt_var,
-                                    ignore_background=ignore_background,
-                                    counting_method=counting_method,
-                                    m=m,
-                                    separate_normalization=separate_normalization,
-                                    pos_cost_weight=pos_cost_weight,
-                                    return_pos_neg_cost=True)
+    def __call__(self, pred, gt):
+        """
+        pred:  np.ndarray, dimensions [batch_size, n_edges_per_voxel, depth, width, height]
 
-    # compile compute_metrics function
-    compute_metrics = theano.function([edge_var, gt_var], 
-                                      [malis_cost_var, pos_pairs_var, neg_pairs_var, pos_cost_var, neg_cost_var])
+        gt:    np.ndarray, dimensions [batch_size, depth, width, height]
+        """
+        batch_size = pred.shape[0]
 
-    # loop over samples
-    malis_cost = 0
-    pos_cost = 0
-    neg_cost = 0
-    pos_pairs = np.empty(pred.shape)
-    neg_pairs = np.empty(pred.shape)
-    for i in  range(pred.shape[0]):
-        batch_malis_cost, batch_pos_pairs, batch_neg_pairs, batch_pos_cost, batch_neg_cost = compute_metrics(pred[[i]], gt[[i]])
-        malis_cost += batch_malis_cost / batch_size
-        pos_cost += batch_pos_cost / batch_size
-        neg_cost += batch_neg_cost / batch_size
-        pos_pairs[[i]] = batch_pos_pairs
-        neg_pairs[[i]] = batch_neg_pairs
+        # cast pred and gt to float32 and int64 respectively
+        pred = pred.astype(np.float32)
+        gt = gt.astype(np.int64)
 
-    # create dict to hold all metrics
-    returndict = {
-            "malis_cost": malis_cost,
-            "pos_cost": pos_cost,
-            "neg_cost": neg_cost,
-            "pos_pairs": pos_pairs,
-            "neg_pairs": neg_pairs
-    }
+        # loop over samples
+        malis_cost = 0
+        pos_cost = 0
+        neg_cost = 0
+        pos_pairs = np.empty(pred.shape)
+        neg_pairs = np.empty(pred.shape)
+        for i in  range(pred.shape[0]):
+            batch_malis_cost, batch_pos_pairs, batch_neg_pairs, batch_pos_cost, batch_neg_cost = self.compute_metrics(pred[[i]], gt[[i]])
+            malis_cost += batch_malis_cost / batch_size
+            pos_cost += batch_pos_cost / batch_size
+            neg_cost += batch_neg_cost / batch_size
+            pos_pairs[[i]] = batch_pos_pairs
+            neg_pairs[[i]] = batch_neg_pairs
 
-    return returndict
+        # create dict to hold all metrics
+        returndict = {
+                "malis_cost": malis_cost,
+                "pos_cost": pos_cost,
+                "neg_cost": neg_cost,
+                "pos_pairs": pos_pairs,
+                "neg_pairs": neg_pairs
+        }
+
+        return returndict
+
 
 class keras_malis(object):
     __name__ = "keras_F_Rand"

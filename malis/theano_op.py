@@ -155,9 +155,8 @@ def malis_metrics(volume_shape, pred, gt, ignore_background=False, counting_meth
     # threshold affinities
     switch_mask = (T.or_(T.and_(pred < m, pos_pairs < neg_pairs), \
                          T.and_(pred > 1-m, pos_pairs > neg_pairs)))
-    pred = T.switch(switch_mask, 0., pred)
-    pos_pairs = T.switch(switch_mask, 0, pos_pairs)
-    neg_pairs = T.switch(switch_mask, 0, neg_pairs)
+    pos_pairs_thresh = T.switch(switch_mask, 0, pos_pairs)
+    neg_pairs_thresh = T.switch(switch_mask, 0, neg_pairs)
 
     sum_over_axes = tuple(np.arange(len(volume_shape)+1) +1)
     total_pos_pairs = T.sum(pos_pairs, axis=sum_over_axes) +1
@@ -165,11 +164,11 @@ def malis_metrics(volume_shape, pred, gt, ignore_background=False, counting_meth
     total_pairs = total_pos_pairs + total_neg_pairs
 
     if separate_normalization == True:
-        pos_cost = T.sum((1-pred)**2 * pos_pairs, axis=sum_over_axes) / total_pos_pairs
-        neg_cost = T.sum(pred**2 * neg_pairs, axis=sum_over_axes)  / total_neg_pairs
+        pos_cost = T.sum((1-pred)**2 * pos_pairs_thresh, axis=sum_over_axes) / total_pos_pairs
+        neg_cost = T.sum(pred**2 * neg_pairs_thresh, axis=sum_over_axes)  / total_neg_pairs
     elif separate_normalization == False:
-        pos_cost = T.sum((1-pred)**2 * pos_pairs, axis=sum_over_axes) / total_pairs
-        neg_cost = T.sum(pred**2 * neg_pairs, axis=sum_over_axes)  / total_pairs
+        pos_cost = T.sum((1-pred)**2 * pos_pairs_thresh, axis=sum_over_axes) / total_pairs
+        neg_cost = T.sum(pred**2 * neg_pairs_thresh, axis=sum_over_axes)  / total_pairs
 
     malis_cost = pos_cost_weight * pos_cost + (1-pos_cost_weight) * neg_cost
 

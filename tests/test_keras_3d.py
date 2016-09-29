@@ -53,11 +53,11 @@ data += np.random.normal(loc=0, scale=.01, size=DATA_SHAPE)
 
 # start building classifier
 eta = 0.1 #learning rate
-n_epochs = 10
-iterations_per_epoch = 10
+n_epochs = 20
+iterations_per_epoch = 20
 ignore_background=False
 counting_method=0
-m_parameter = .2
+m_parameter = .3
 separate_normalization=True
 pos_cost_weight=.3
 

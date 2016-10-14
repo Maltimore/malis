@@ -22,6 +22,15 @@ class AffinityGraphCompare{
 		}
 };
 
+int myrandom (int i) {
+	int rand_max = 50;
+	if (i < rand_max){
+		return std::rand()%i;
+	} else {
+		return std::rand()%rand_max;
+	}
+}
+
 /*
  * Compute the MALIS loss function and its derivative wrt the affinity graph
  * MAXIMUM spanning tree
@@ -61,6 +70,7 @@ void malis_loss_weights_cpp(const int nVert, const int64_t* seg,
     unsigned long nValidEdge = j;
     pqueue.resize(nValidEdge);
     sort( pqueue.begin(), pqueue.end(), AffinityGraphCompare<float>( edgeWeight ) );
+	std::random_shuffle(pqueue.begin(), pqueue.end(), myrandom);	
 
 
     /* Start MST */
@@ -93,11 +103,11 @@ void malis_loss_weights_cpp(const int nVert, const int64_t* seg,
 						nPair = it1->second + it2->second;
 					}
 
-                    if (it1->first == it2->first) {
+                    if ((it1->first == it2->first) && (it1->first !=0)&&(it2->first!=0)) {
 						if ((it1->first != 0) && (it2->first != 0))
 							/* only count positives pair that are not background voxels */
 							nPosPairPerEdge[e] += nPair;
-                    } else if (it1->first != it2->first) {
+                    } else {
                         nNegPairPerEdge[e] += nPair;
                     }
                 }

@@ -11,7 +11,7 @@ from keras.layers.convolutional import Convolution3D, MaxPooling2D
 from keras.optimizers import SGD
 na = np.newaxis
 
-N_SAMPLES = 6
+N_SAMPLES = 3
 EDG_PER_VOX = 3
 VOLUME_SHAPE = (1,5,6,7)
 EDGEVOL_SHAPE = (EDG_PER_VOX,) + VOLUME_SHAPE[1:]
@@ -22,14 +22,16 @@ DATA_SHAPE = (N_SAMPLES,) + VOLUME_SHAPE
 gt = np.zeros(DATA_SHAPE, dtype=np.int64)
 # first sample
 gt[0, 0, :3, ...] = 1
-gt[0, 0, 3:, ...] = 2
+gt[0, 0, 3, ...] = 0
+gt[0, 0, 4:, ...] = 2
 # second sample
 gt[1, 0, :, :3, ...] = 5
-gt[1, 0, :, 3:, ...] = 2
+gt[1, 0, :, 3, ...] = 0
+gt[1, 0, :, 4:, ...] = 2
 # third sample
 gt[2, 0, :, :2, ...] = 1
-gt[2, 0, :, 2:, ...] = 2
-gt[3:] = 0
+gt[2, 0, :, 2, ...] = 0
+gt[2, 0, :, 3:, ...] = 2
 
 # create data from gt
 data=np.zeros(DATA_SHAPE)
@@ -45,56 +47,63 @@ data[1, 0, :, 4:, ...] = 1
 data[2, 0, :, :2, ...] = 1
 data[2, 0, :, 2, ...] = 0
 data[2, 0, :, 3:, ...] = 1
-data[3:] = 1
 
 
 # add some noise
-data += np.random.normal(loc=0, scale=.01, size=DATA_SHAPE)
+data += np.random.normal(loc=0, scale=.1, size=DATA_SHAPE)
 
 # start building classifier
-eta = 0.1 #learning rate
-n_epochs = 20
-iterations_per_epoch = 20
+eta = 0.01 #learning rate
+n_epochs = 60
+iterations_per_epoch = 30
 ignore_background=False
 counting_method=0
-m_parameter = .3
-separate_normalization=True
+m_parameter = .2
+separate_cost_normalization=False
+separate_direction_normalization=True
 pos_cost_weight=.3
 
 # start network creation
 model = Sequential()
-model.add(Convolution3D(nb_filter=5,
+model.add(Convolution3D(nb_filter=20,
                         kernel_dim1=3,
                         kernel_dim2=3,
                         kernel_dim3=3,
                         input_shape=VOLUME_SHAPE,
                         border_mode="same"))
 model.add(Activation("relu"))
-model.add(Convolution3D(nb_filter=5,
+model.add(Convolution3D(nb_filter=20,
                         kernel_dim1=3,
                         kernel_dim2=3,
                         kernel_dim3=3,
-                        input_shape=VOLUME_SHAPE,
+                        border_mode="same"))
+model.add(Activation("relu"))
+model.add(Convolution3D(nb_filter=20,
+                        kernel_dim1=3,
+                        kernel_dim2=3,
+                        kernel_dim3=3,
                         border_mode="same"))
 model.add(Activation("relu"))
 model.add(Convolution3D(nb_filter=3,
                         kernel_dim1=3,
                         kernel_dim2=3,
                         kernel_dim3=3,
-                        input_shape=VOLUME_SHAPE,
                         border_mode="same"))
 model.add(Activation("sigmoid"))
-sgd = SGD(lr=eta, momentum=0.4, nesterov=True)
+sgd = SGD(lr=eta, momentum=0.9, nesterov=True)
 keras_malis_loss = keras_malis(VOLUME_SHAPE[1:], 
-                               ignore_background=ignore_background,
-                               counting_method=counting_method, m=m_parameter,
-                               separate_normalization=separate_normalization,
-                               pos_cost_weight=pos_cost_weight)
+       ignore_background=ignore_background,
+       counting_method=counting_method, m=m_parameter,
+       separate_cost_normalization=separate_cost_normalization,
+       separate_direction_normalization=separate_direction_normalization,
+       pos_cost_weight=pos_cost_weight)
 
 compute_malis_metrics = malis_metrics_no_theano(volume_shape=VOLUME_SHAPE[1:],
-                                                ignore_background=ignore_background,
-                                                counting_method=counting_method,
-                                                m=m_parameter)
+       ignore_background=ignore_background,
+       separate_cost_normalization=separate_cost_normalization,
+       separate_direction_normalization=separate_direction_normalization,
+       counting_method=counting_method,
+       m=m_parameter)
 
 model.compile(optimizer=sgd,
               loss=keras_malis_loss)
@@ -128,13 +137,16 @@ from malis import mknhood3d, seg_to_affgraph
 pred_aff = model.predict(data)[plot_sample]
 aff = seg_to_affgraph(gt[plot_sample,0], mknhood3d())
 plt.figure()
-plt.subplot(131)
+plt.subplot(141)
 plt.pcolor(data[plot_sample,0,1], cmap="gray")
 plt.title("data")
-plt.subplot(132)
+plt.subplot(142)
 plt.pcolor(aff[1,1], cmap="gray")
 plt.title("aff from gt")
-plt.subplot(133)
+plt.subplot(143)
+plt.pcolor(pred_aff[2,1], cmap="gray")
+plt.title("predicted x-affinities")
+plt.subplot(144)
 plt.pcolor(pred_aff[1,1], cmap="gray")
-plt.title("predicted aff")
+plt.title("predicted y-affinities")
 plt.show()

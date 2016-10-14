@@ -5,6 +5,7 @@ import theano.tensor as T
 import numpy as np
 import malis as m
 from scipy.special import comb
+from scipy import stats
 
 int64_matrix = T.TensorType(dtype="int64", broadcastable=(False, False))
 uint64_matrix = T.TensorType(dtype="uint64", broadcastable=(False, False))
@@ -57,6 +58,7 @@ class pair_counter(theano.Op):
         self.node_idx2 = node_idx2.copy()
         self.node_idx1_id = id(node_idx1)
         self.node_idx2_id = id(node_idx2)
+        self.volume_shape = volume_shape
 
         self.ignore_background = ignore_background
         self.counting_method = counting_method
@@ -71,8 +73,12 @@ class pair_counter(theano.Op):
     def perform(self, node, inputs, outputs):
         edge_weights, gt = inputs
         pos_pairs, neg_pairs = outputs
-
         batch_size = gt.shape[0]
+
+        # z-score transformation
+        edge_weights = edge_weights.reshape((batch_size, 3,-1))
+        edge_weights = stats.zscore(edge_weights, axis=1)
+        edge_weights = edge_weights.reshape((batch_size, -1))
 
         # allocate outputs
         pos_pairs[0] = np.zeros(edge_weights.shape, dtype=np.uint64)
@@ -127,7 +133,9 @@ def NN_3d_pair_counter(volume_shape, affinities, ground_truth, radius=1, ignore_
 
 
 def malis_metrics(volume_shape, pred, gt, ignore_background=False, counting_method=0, m=0.1,
-                  separate_normalization=False, pos_cost_weight=0.2, return_pos_neg_cost=False):
+                  separate_cost_normalization=False,
+                  separate_direction_normalization=False,
+                  pos_cost_weight=0.2, return_pos_neg_cost=False):
     """
     VOLUME_SHAPE should be of dimensions
         [width, height]        for 2-d data.# currently not supported
@@ -152,21 +160,26 @@ def malis_metrics(volume_shape, pred, gt, ignore_background=False, counting_meth
                                               ignore_background=ignore_background,
                                               counting_method=counting_method)
 
-    # threshold affinities
+    # threshold affinities that fall into the margins
     switch_mask = (T.or_(T.and_(pred < m, pos_pairs < neg_pairs), \
                          T.and_(pred > 1-m, pos_pairs > neg_pairs)))
     pos_pairs_thresh = T.switch(switch_mask, 0, pos_pairs)
     neg_pairs_thresh = T.switch(switch_mask, 0, neg_pairs)
+
+    pos_switch_mask = (pos_pairs < neg_pairs)
+    pos_pairs_thresh = T.switch(pos_switch_mask, 0, pos_pairs_thresh)
+    neg_switch_mask = (neg_pairs < pos_pairs)
+    neg_pairs_thresh = T.switch(neg_switch_mask, 0, neg_pairs_thresh)
 
     sum_over_axes = tuple(np.arange(len(volume_shape)+1) +1)
     total_pos_pairs = T.sum(pos_pairs, axis=sum_over_axes) +1
     total_neg_pairs = T.sum(neg_pairs, axis=sum_over_axes) +1
     total_pairs = total_pos_pairs + total_neg_pairs
 
-    if separate_normalization == True:
+    if separate_cost_normalization == True:
         pos_cost = T.sum((1-pred)**2 * pos_pairs_thresh, axis=sum_over_axes) / total_pos_pairs
         neg_cost = T.sum(pred**2 * neg_pairs_thresh, axis=sum_over_axes)  / total_neg_pairs
-    elif separate_normalization == False:
+    elif separate_cost_normalization == False:
         pos_cost = T.sum((1-pred)**2 * pos_pairs_thresh, axis=sum_over_axes) / total_pairs
         neg_cost = T.sum(pred**2 * neg_pairs_thresh, axis=sum_over_axes)  / total_pairs
 
@@ -180,7 +193,9 @@ def malis_metrics(volume_shape, pred, gt, ignore_background=False, counting_meth
 
 class malis_metrics_no_theano(object):
     def __init__(self, volume_shape, ignore_background=False, counting_method=0, m=0.1,
-                 separate_normalization=False, pos_cost_weight=0.5):
+                 separate_cost_normalization=False,
+                 separate_direction_normalization=False,
+                 pos_cost_weight=0.5):
         """
         volume_shape:           tuple, should be (depth, width, height)
         ignore background:      if this is set to true, all voxels that have label 0
@@ -195,7 +210,7 @@ class malis_metrics_no_theano(object):
 
         m:                      scalar, margin for the loss function (predicted affinities in [0, m] and [1-m, 1] are ignored)
 
-        separate_normalization: bool
+        separate_cost_normalization: bool
                                 whether to normalize the positive and negative cost independently
 
         pos_cost_weight:        scalar in [0, 1]. 
@@ -210,16 +225,18 @@ class malis_metrics_no_theano(object):
         edge_var = edge_tensor_type("edge_var")
 
         # make malisOp variable
-        malis_cost_var, pos_pairs_var, neg_pairs_var, pos_cost_var, neg_cost_var = malis_metrics( \
-                                        volume_shape,
-                                        edge_var,
-                                        gt_var,
-                                        ignore_background=ignore_background,
-                                        counting_method=counting_method,
-                                        m=m,
-                                        separate_normalization=separate_normalization,
-                                        pos_cost_weight=pos_cost_weight,
-                                        return_pos_neg_cost=True)
+        malis_cost_var, pos_pairs_var, neg_pairs_var, pos_cost_var, \
+            neg_cost_var = malis_metrics( \
+                volume_shape,
+                edge_var,
+                gt_var,
+                ignore_background=ignore_background,
+                counting_method=counting_method,
+                m=m,
+                separate_cost_normalization=separate_cost_normalization,
+                separate_direction_normalization=separate_direction_normalization,
+                pos_cost_weight=pos_cost_weight,
+                return_pos_neg_cost=True)
 
         # compile compute_metrics function
         self.compute_metrics = theano.function([edge_var, gt_var], 
@@ -245,7 +262,8 @@ class malis_metrics_no_theano(object):
         pos_pairs = np.empty(pred.shape)
         neg_pairs = np.empty(pred.shape)
         for i in  range(pred.shape[0]):
-            batch_malis_cost, batch_pos_pairs, batch_neg_pairs, batch_pos_cost, batch_neg_cost = self.compute_metrics(pred[[i]], gt[[i]])
+            batch_malis_cost, batch_pos_pairs, batch_neg_pairs,\
+                batch_pos_cost, batch_neg_cost = self.compute_metrics(pred[[i]], gt[[i]])
             malis_cost += batch_malis_cost / batch_size
             pos_cost += batch_pos_cost / batch_size
             neg_cost += batch_neg_cost / batch_size
@@ -267,7 +285,9 @@ class malis_metrics_no_theano(object):
 class keras_malis(object):
     __name__ = "keras_F_Rand"
     def __init__(self, volume_shape, ignore_background=False, counting_method=0, m=.1,
-                 separate_normalization=False, pos_cost_weight=0.5):
+                 separate_cost_normalization=False,
+                 separate_direction_normalization=False,
+                 pos_cost_weight=0.5):
         """ This function should be initialized with the
         volume_shape: (depth, width, height),
         and can be plugged as an objective function into keras directly.
@@ -295,14 +315,16 @@ class keras_malis(object):
         self.ignore_background = ignore_background
         self.counting_method = counting_method
         self.m = m
-        self.separate_normalization=separate_normalization
+        self.separate_cost_normalization=separate_cost_normalization
+        self.separate_direction_normalization=separate_direction_normalization
         self.pos_cost_weight=pos_cost_weight
 
     def __call__(self, gt, pred):
         malis_cost, _, _ = malis_metrics(self.volume_shape, pred, gt,
-                                         ignore_background=self.ignore_background,
-                                         counting_method=self.counting_method,
-                                         m=self.m,
-                                         separate_normalization=self.separate_normalization,
-                                         pos_cost_weight=self.pos_cost_weight)
+             ignore_background=self.ignore_background,
+             counting_method=self.counting_method,
+             m=self.m,
+             separate_cost_normalization=self.separate_cost_normalization,
+             separate_direction_normalization=self.separate_direction_normalization,
+             pos_cost_weight=self.pos_cost_weight)
         return malis_cost

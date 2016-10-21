@@ -54,14 +54,17 @@ data += np.random.normal(loc=0, scale=.1, size=DATA_SHAPE)
 
 # start building classifier
 eta = 0.01 #learning rate
-n_epochs = 60
+n_epochs = 40
 iterations_per_epoch = 30
 ignore_background=False
 counting_method=0
 m_parameter = .2
 separate_cost_normalization=False
 separate_direction_normalization=True
-pos_cost_weight=.3
+pos_cost_weight=.5
+stochastic_malis_parameter=5
+z_transform=True
+
 
 # start network creation
 model = Sequential()
@@ -96,7 +99,9 @@ keras_malis_loss = keras_malis(VOLUME_SHAPE[1:],
        counting_method=counting_method, m=m_parameter,
        separate_cost_normalization=separate_cost_normalization,
        separate_direction_normalization=separate_direction_normalization,
-       pos_cost_weight=pos_cost_weight)
+       pos_cost_weight=pos_cost_weight,
+       stochastic_malis_parameter=stochastic_malis_parameter,
+       z_transform=z_transform)
 
 compute_malis_metrics = malis_metrics_no_theano(volume_shape=VOLUME_SHAPE[1:],
        ignore_background=ignore_background,
@@ -137,16 +142,19 @@ from malis import mknhood3d, seg_to_affgraph
 pred_aff = model.predict(data)[plot_sample]
 aff = seg_to_affgraph(gt[plot_sample,0], mknhood3d())
 plt.figure()
-plt.subplot(141)
+plt.subplot(151)
 plt.pcolor(data[plot_sample,0,1], cmap="gray")
 plt.title("data")
-plt.subplot(142)
-plt.pcolor(aff[1,1], cmap="gray")
-plt.title("aff from gt")
-plt.subplot(143)
+plt.subplot(152)
+plt.pcolor(aff[1,2], cmap="gray")
+plt.title("x-aff from gt")
+plt.subplot(153)
 plt.pcolor(pred_aff[2,1], cmap="gray")
 plt.title("predicted x-affinities")
-plt.subplot(144)
+plt.subplot(154)
+plt.pcolor(aff[1,1], cmap="gray")
+plt.title("y-aff from gt")
+plt.subplot(155)
 plt.pcolor(pred_aff[1,1], cmap="gray")
 plt.title("predicted y-affinities")
 plt.show()

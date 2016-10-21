@@ -35,7 +35,7 @@ class pair_counter(theano.Op):
     check_input = True
 
     def __init__(self, node_idx1, node_idx2, volume_shape, ignore_background=False,
-                 counting_method=0):
+                 counting_method=0, stochastic_malis_parameter=0, z_transform=False):
         """
         node_idx1 and node_idx2 are the offset of voxels in an edge array,
         together they describe the edges between corresponding entries.
@@ -62,6 +62,8 @@ class pair_counter(theano.Op):
 
         self.ignore_background = ignore_background
         self.counting_method = counting_method
+        self.stochastic_malis_parameter=stochastic_malis_parameter
+        self.z_transform=z_transform
 
         super(pair_counter, self).__init__()
 
@@ -75,10 +77,11 @@ class pair_counter(theano.Op):
         pos_pairs, neg_pairs = outputs
         batch_size = gt.shape[0]
 
-        # z-score transformation
-        edge_weights = edge_weights.reshape((batch_size, 3,-1))
-        edge_weights = stats.zscore(edge_weights, axis=1)
-        edge_weights = edge_weights.reshape((batch_size, -1))
+        # z-transform
+        if self.z_transform:
+            edge_weights = edge_weights.reshape((batch_size, 3,-1))
+            edge_weights = stats.zscore(edge_weights, axis=1)
+            edge_weights = edge_weights.reshape((batch_size, -1))
 
         # allocate outputs
         pos_pairs[0] = np.zeros(edge_weights.shape, dtype=np.uint64)
@@ -95,12 +98,14 @@ class pair_counter(theano.Op):
             batch_pos_pairs = pos_pairs[batch_idx, ...]
             batch_neg_pairs = neg_pairs[batch_idx, ...]
 
-            batch_pos_pairs[...], batch_neg_pairs[...] = m.malis_loss_weights(batch_gt,
-                                                self.node_idx1,
-                                                self.node_idx2,
-                                                batch_edges,
-                                                ignore_background=self.ignore_background,
-                                                counting_method=self.counting_method)
+            batch_pos_pairs[...], batch_neg_pairs[...] = m.malis_loss_weights(
+                    batch_gt,
+                    self.node_idx1,
+                    self.node_idx2,
+                    batch_edges,
+                    ignore_background=self.ignore_background,
+                    counting_method=self.counting_method,
+                    stochastic_malis_parameter=self.stochastic_malis_parameter)
 
     def grad(self, inputs, gradient_in):
         # since this function just computes the counts, the gradient should
@@ -108,8 +113,9 @@ class pair_counter(theano.Op):
         return inputs[0] * 0, theano.gradient.grad_undefined(self, 0, inputs[0].dtype)
 
 
-def NN_3d_pair_counter(volume_shape, affinities, ground_truth, radius=1, ignore_background=False,
-                       counting_method=0):
+def NN_3d_pair_counter(volume_shape, affinities, ground_truth, radius=1,
+        ignore_background=False, counting_method=0,
+        stochastic_malis_parameter=0, z_transform=False):
     '''Malis op wrapper for 3D
 
     affinities - float32 tensor of affinities with 5 dimensions: (batch, #local_edges, D, H, W)
@@ -122,7 +128,9 @@ def NN_3d_pair_counter(volume_shape, affinities, ground_truth, radius=1, ignore_
     node_idx_1, node_idx_2 = m.nodelist_like(volume_shape, nhood)
     pair_counter_op = pair_counter(node_idx_1.ravel(), node_idx_2.ravel(), volume_shape,
                                    ignore_background=ignore_background,
-                                   counting_method=counting_method)
+                                   counting_method=counting_method,
+                                   stochastic_malis_parameter=stochastic_malis_parameter,
+                                   z_transform=z_transform)
 
     flat_affinities = affinities.flatten(ndim=2)
     flat_gt = ground_truth.flatten(ndim=2)
@@ -135,7 +143,10 @@ def NN_3d_pair_counter(volume_shape, affinities, ground_truth, radius=1, ignore_
 def malis_metrics(volume_shape, pred, gt, ignore_background=False, counting_method=0, m=0.1,
                   separate_cost_normalization=False,
                   separate_direction_normalization=False,
-                  pos_cost_weight=0.2, return_pos_neg_cost=False):
+                  pos_cost_weight=0.2,
+                  return_pos_neg_cost=False,
+                  stochastic_malis_parameter=0,
+                  z_transform=False):
     """
     VOLUME_SHAPE should be of dimensions
         [width, height]        for 2-d data.# currently not supported
@@ -158,7 +169,9 @@ def malis_metrics(volume_shape, pred, gt, ignore_background=False, counting_meth
     gt_as_int = T.cast(gt, "int64")
     pos_pairs, neg_pairs = NN_3d_pair_counter(volume_shape, pred, gt_as_int,
                                               ignore_background=ignore_background,
-                                              counting_method=counting_method)
+                                              counting_method=counting_method,
+                                              stochastic_malis_parameter=stochastic_malis_parameter,
+                                              z_transform=z_transform)
 
     # threshold affinities that fall into the margins
     switch_mask = (T.or_(T.and_(pred < m, pos_pairs < neg_pairs), \
@@ -166,10 +179,10 @@ def malis_metrics(volume_shape, pred, gt, ignore_background=False, counting_meth
     pos_pairs_thresh = T.switch(switch_mask, 0, pos_pairs)
     neg_pairs_thresh = T.switch(switch_mask, 0, neg_pairs)
 
-    pos_switch_mask = (pos_pairs < neg_pairs)
-    pos_pairs_thresh = T.switch(pos_switch_mask, 0, pos_pairs_thresh)
-    neg_switch_mask = (neg_pairs < pos_pairs)
-    neg_pairs_thresh = T.switch(neg_switch_mask, 0, neg_pairs_thresh)
+#    pos_switch_mask = (pos_pairs < neg_pairs)
+#    pos_pairs_thresh = T.switch(pos_switch_mask, 0, pos_pairs_thresh)
+#    neg_switch_mask = (neg_pairs < pos_pairs)
+#    neg_pairs_thresh = T.switch(neg_switch_mask, 0, neg_pairs_thresh)
 
     sum_over_axes = tuple(np.arange(len(volume_shape)+1) +1)
     total_pos_pairs = T.sum(pos_pairs, axis=sum_over_axes) +1
@@ -287,7 +300,9 @@ class keras_malis(object):
     def __init__(self, volume_shape, ignore_background=False, counting_method=0, m=.1,
                  separate_cost_normalization=False,
                  separate_direction_normalization=False,
-                 pos_cost_weight=0.5):
+                 pos_cost_weight=0.5,
+                 stochastic_malis_parameter=0,
+                 z_transform=False):
         """ This function should be initialized with the
         volume_shape: (depth, width, height),
         and can be plugged as an objective function into keras directly.
@@ -315,9 +330,11 @@ class keras_malis(object):
         self.ignore_background = ignore_background
         self.counting_method = counting_method
         self.m = m
-        self.separate_cost_normalization=separate_cost_normalization
-        self.separate_direction_normalization=separate_direction_normalization
-        self.pos_cost_weight=pos_cost_weight
+        self.separate_cost_normalization = separate_cost_normalization
+        self.separate_direction_normalization = separate_direction_normalization
+        self.pos_cost_weight = pos_cost_weight
+        self.stochastic_malis_parameter = stochastic_malis_parameter
+        self.z_transform = z_transform
 
     def __call__(self, gt, pred):
         malis_cost, _, _ = malis_metrics(self.volume_shape, pred, gt,
@@ -326,5 +343,7 @@ class keras_malis(object):
              m=self.m,
              separate_cost_normalization=self.separate_cost_normalization,
              separate_direction_normalization=self.separate_direction_normalization,
-             pos_cost_weight=self.pos_cost_weight)
+             pos_cost_weight=self.pos_cost_weight,
+             stochastic_malis_parameter=self.stochastic_malis_parameter,
+             z_transform=self.z_transform)
         return malis_cost

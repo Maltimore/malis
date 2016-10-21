@@ -12,7 +12,9 @@ cdef extern from "malis_cpp.h":
                    const int nEdge, const int* node1, const int* node2, const float* edgeWeight,
                    uint64* nPosPairPerEdge, uint64* nNegPairPerEdge,
                    bool ignore_background,
-                   int counting_method);
+                   int counting_method,
+                   int stochastic_malis_parameter);
+
     void connected_components_cpp(const int nVert,
                    const int nEdge, const int* node1, const int* node2, const int* edgeWeight,
                    int* seg);
@@ -25,7 +27,8 @@ def malis_loss_weights(np.ndarray[np.int64_t, ndim=1] segTrue,
                 np.ndarray[int, ndim=1] node2,
                 np.ndarray[float, ndim=1] edgeWeight,
                 bool ignore_background=False,
-                int counting_method=0):
+                int counting_method=0,
+                stochastic_malis_parameter=0):
 
     cdef int nVert = segTrue.shape[0]
     cdef int nEdge = node1.shape[0]
@@ -40,7 +43,8 @@ def malis_loss_weights(np.ndarray[np.int64_t, ndim=1] segTrue,
                    &nPosPairPerEdge[0],
                    &nNegPairPerEdge[0],
                    ignore_background=ignore_background,
-                   counting_method=counting_method);
+                   counting_method=counting_method,
+                   stochastic_malis_parameter=stochastic_malis_parameter);
     return nPosPairPerEdge, nNegPairPerEdge
 
 

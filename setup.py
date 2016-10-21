@@ -6,7 +6,8 @@ import numpy
 
 ext_modules = [Extension("malis.malis",
                          ["malis/malis.pyx", "malis/malis_cpp.cpp"],
-                         language='c++',)]
+                         language='c++',
+                         extra_compile_args=["-std=c++14"]),]
 
 setup(name="Malis",
       cmdclass={'build_ext': build_ext},

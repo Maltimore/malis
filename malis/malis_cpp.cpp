@@ -22,15 +22,6 @@ class AffinityGraphCompare{
 		}
 };
 
-int myrandom (int i) {
-	int rand_max = 50;
-	if (i < rand_max){
-		return std::rand()%i;
-	} else {
-		return std::rand()%rand_max;
-	}
-}
-
 /*
  * Compute the MALIS loss function and its derivative wrt the affinity graph
  * MAXIMUM spanning tree
@@ -41,7 +32,8 @@ void malis_loss_weights_cpp(const int nVert, const int64_t* seg,
                const int nEdge, const int* node1, const int* node2, const float* edgeWeight,
                uint64_t* nPosPairPerEdge, uint64_t* nNegPairPerEdge,
 			   bool ignore_background = true,
-			   int counting_method = 0){
+			   int counting_method = 0,
+			   int stochastic_malis_parameter = 0){
 
     /* Disjoint sets and sparse overlap vectors */
     vector<map<int,uint64_t> > overlap(nVert);
@@ -70,7 +62,21 @@ void malis_loss_weights_cpp(const int nVert, const int64_t* seg,
     unsigned long nValidEdge = j;
     pqueue.resize(nValidEdge);
     sort( pqueue.begin(), pqueue.end(), AffinityGraphCompare<float>( edgeWeight ) );
-	std::random_shuffle(pqueue.begin(), pqueue.end(), myrandom);	
+
+    /* make the algorithm non-greedy by shuffling the edge list slightly
+	 * (list is shuffled more with bigger stochastic_malis_parameter)
+	 * */
+    if (stochastic_malis_parameter > 0){
+		auto lambda_myrandom = [stochastic_malis_parameter] (int i) {
+			int rand_max = stochastic_malis_parameter;
+			if (i < rand_max){
+				return std::rand()%i;
+			} else {
+				return std::rand()%rand_max;
+			}
+		};
+		std::random_shuffle(pqueue.begin(), pqueue.end(), lambda_myrandom);
+	}
 
 
     /* Start MST */

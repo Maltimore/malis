@@ -80,7 +80,7 @@ class pair_counter(theano.Op):
         # z-transform
         if self.z_transform:
             edge_weights = edge_weights.reshape((batch_size, 3,-1))
-            edge_weights = stats.zscore(edge_weights, axis=1)
+            edge_weights = stats.zscore(edge_weights, axis=2)
             edge_weights = edge_weights.reshape((batch_size, -1))
 
         # allocate outputs

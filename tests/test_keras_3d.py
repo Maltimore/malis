@@ -58,11 +58,11 @@ n_epochs = 40
 iterations_per_epoch = 30
 ignore_background=False
 counting_method=0
-m_parameter = .2
+m_parameter = .1
 separate_cost_normalization=False
 separate_direction_normalization=True
 pos_cost_weight=.5
-stochastic_malis_parameter=5
+stochastic_malis_parameter=20
 z_transform=True
 
 
@@ -141,20 +141,33 @@ plot_sample = 1
 from malis import mknhood3d, seg_to_affgraph
 pred_aff = model.predict(data)[plot_sample]
 aff = seg_to_affgraph(gt[plot_sample,0], mknhood3d())
-plt.figure()
-plt.subplot(151)
+# pred_aff has shape (n_edges, z, y, x)
+# aff has shape (n_edges, z, y, x)
+
+# data
+plt.figure(figsize=(20, 5))
+plt.subplot(171)
 plt.pcolor(data[plot_sample,0,1], cmap="gray")
 plt.title("data")
-plt.subplot(152)
-plt.pcolor(aff[1,2], cmap="gray")
-plt.title("x-aff from gt")
-plt.subplot(153)
-plt.pcolor(pred_aff[2,1], cmap="gray")
-plt.title("predicted x-affinities")
-plt.subplot(154)
+# z affinities
+plt.subplot(172)
+plt.pcolor(aff[0,1], cmap="gray")
+plt.title("z-aff from gt")
+plt.subplot(173)
+plt.pcolor(pred_aff[0,1], cmap="gray")
+plt.title("predicted z-affinities")
+# y affinities
+plt.subplot(174)
 plt.pcolor(aff[1,1], cmap="gray")
 plt.title("y-aff from gt")
-plt.subplot(155)
+plt.subplot(175)
 plt.pcolor(pred_aff[1,1], cmap="gray")
 plt.title("predicted y-affinities")
+# x affinities
+plt.subplot(176)
+plt.pcolor(aff[2,1], cmap="gray")
+plt.title("x-aff from gt")
+plt.subplot(177)
+plt.pcolor(pred_aff[2,1], cmap="gray")
+plt.title("predicted x-affinities")
 plt.show()

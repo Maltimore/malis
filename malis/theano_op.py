@@ -11,11 +11,9 @@ int64_matrix = T.TensorType(dtype="int64", broadcastable=(False, False))
 uint64_matrix = T.TensorType(dtype="uint64", broadcastable=(False, False))
 
 class pair_counter(theano.Op):
-    '''Theano wrapper around the MALIS loss function.
-
-    TODO: document arguments to __init__() and how to use tools in malis module
-    to use them.
-    '''
+    """
+    Theano wrapper around the MALIS loss function.
+    """
 
     # Two MalisOps are the same if their indices are the same
     __props__ = ('node_idx1_id', 'node_idx2_id')
@@ -37,22 +35,28 @@ class pair_counter(theano.Op):
     def __init__(self, node_idx1, node_idx2, volume_shape, ignore_background=False,
                  counting_method=0, stochastic_malis_parameter=0, z_transform=False):
         """
-        node_idx1 and node_idx2 are the offset of voxels in an edge array,
-        together they describe the edges between corresponding entries.
-        volume shape should be of shape
-        [height, width]
-        for 2D data and
-        [height, width, depth]
-        for 3D data.
-
-        ignore background: if this is set to true, all voxels that have label 0
-                           in the ground truth (background voxels)are being ignored. If false,
-                           then background voxels are counted such that only their
-                           negative counts are considered.
-        counting method: how to count voxel pairs.
-                         0: group1 * group2
-                         1: log(group1) * group2 + group1 * log(group2)
-                         2: group1 + group2
+        node_idx1, node_idx2:   offset of voxels in an edge array,
+                                together they describe the edges between
+                                corresponding entries.
+                                volume shape should be of shape
+                                [height, width, depth]
+                                for 3D data.
+        ignore background:      bool
+                                if this is set to true, all voxels that have
+                                label 0 in the ground truth (background
+                                voxels)are being ignored. If false,
+                                then background voxels are counted such
+                                that only their negative counts are considered.
+        counting method:        how to count voxel pairs.
+                                0: group1 * group2
+                                1: log(group1) * group2 + group1 * log(group2)
+                                2: group1 + group2
+        stochastic_malis_parameter: int >= 0
+                                Range in which each edge is shuffled in Kruskal's
+                                algorithm. A higher value here should leverage
+                                more robustness at a cost of precision.
+        z_transform:            bool
+                                Whether to z-transform the edges per direction
         """
         self.node_idx1 = node_idx1.copy()
         self.node_idx2 = node_idx2.copy()
@@ -118,19 +122,29 @@ def NN_3d_pair_counter(volume_shape, affinities, ground_truth, radius=1,
         stochastic_malis_parameter=0, z_transform=False):
     '''Malis op wrapper for 3D
 
-    affinities - float32 tensor of affinities with 5 dimensions: (batch, #local_edges, D, H, W)
-    ground_truth - int32 tensor of labels with 4 dimensions: (batch, D, H, W)
-    volume_shape - tuple: (D, H, W)
-    radius - default 1, radius of connectivity of neighborhoods.  radius == 1 implies #local_edges = 3
+    affinities:             float32 tensor of affinities with 5 dimensions:
+                            (batch, #local_edges, D, H, W)
+    ground_truth:           int32 tensor of labels with 4 dimensions: 
+                            (batch, D, H, W)
+    volume_shape:           tuple: (D, H, W)
+    radius:                 default 1, radius of connectivity of neighborhoods.
+                            radius == 1 implies #local_edges = 3
+    stochastic_malis_parameter: scalar >= 0
+                            Range in which each edge is shuffled in Kruskal's
+                            algorithm. A higher value here should leverage
+                            more robustness at a cost of precision.
+    z_transform:            bool
+                            Whether to z-transform the edges per direction
     '''
     nhood = m.mknhood3d(radius=radius)
     edges_shape = (nhood.shape[0],) + volume_shape
     node_idx_1, node_idx_2 = m.nodelist_like(volume_shape, nhood)
-    pair_counter_op = pair_counter(node_idx_1.ravel(), node_idx_2.ravel(), volume_shape,
-                                   ignore_background=ignore_background,
-                                   counting_method=counting_method,
-                                   stochastic_malis_parameter=stochastic_malis_parameter,
-                                   z_transform=z_transform)
+    pair_counter_op = pair_counter(node_idx_1.ravel(), \
+                          node_idx_2.ravel(), volume_shape,
+                          ignore_background=ignore_background,
+                          counting_method=counting_method,
+                          stochastic_malis_parameter=stochastic_malis_parameter,
+                          z_transform=z_transform)
 
     flat_affinities = affinities.flatten(ndim=2)
     flat_gt = ground_truth.flatten(ndim=2)
@@ -140,7 +154,9 @@ def NN_3d_pair_counter(volume_shape, affinities, ground_truth, radius=1,
 
 
 
-def malis_metrics(volume_shape, pred, gt, ignore_background=False, counting_method=0, m=0.1,
+def malis_metrics(volume_shape, pred, gt, ignore_background=False,
+                  counting_method=0,
+                  m=0.1,
                   separate_cost_normalization=False,
                   separate_direction_normalization=False,
                   pos_cost_weight=0.2,
@@ -148,17 +164,27 @@ def malis_metrics(volume_shape, pred, gt, ignore_background=False, counting_meth
                   stochastic_malis_parameter=0,
                   z_transform=False):
     """
-    VOLUME_SHAPE should be of dimensions
-        [width, height]        for 2-d data.# currently not supported
-        [depth, width, height] for 3-d data and
-    pred: tensor, dimensions [batch_size, n_edges_per_voxel, depth, width, height]
-    gt: tensor, dimensions [batch_size, depth, width, height]
-    m: scalar in [0, 1]. 
-       margin for the loss function (predicted affinities in [0, m] and [1-m, 1] are ignored)
+    VOLUME_SHAPE:           tuple with of dimensions:
+                            [width, height] for 2-d data. (currently not supported)
+                            [depth, width, height] for 3-d data
+    pred:                   tensor, dimensions [batch_size, n_edges_per_voxel,
+                            depth, width, height]
+    gt:                     tensor, dimensions [batch_size, depth, width, height]
+    m:                      scalar in [0, 1]. 
+                            margin for the loss function
+                            (predicted affinities in [0, m] and [1-m, 1] are 
+                            ignored)
     separate_normalization: bool, indicates whether to normalize pos and neg cost
                             independently
-    pos_cost_weight: scalar in [0, 1]. 
-                     Indicates how much to weigh positive cost compared to negative cost.
+    pos_cost_weight:        scalar in [0, 1]. 
+                            Indicates how much to weigh positive cost compared
+                            to negative cost.
+    stochastic_malis_parameter: scalar >= 0
+                            Range in which each edge is shuffled in Kruskal's
+                            algorithm. A higher value here should leverage
+                            more robustness at a cost of precision.
+    z_transform:            bool
+                            Whether to z-transform the edges per direction
 
     returns: all theano tensors!
     malis_cost: cost at each affinity
@@ -168,10 +194,10 @@ def malis_metrics(volume_shape, pred, gt, ignore_background=False, counting_meth
     # make malisOp variable
     gt_as_int = T.cast(gt, "int64")
     pos_pairs, neg_pairs = NN_3d_pair_counter(volume_shape, pred, gt_as_int,
-                                              ignore_background=ignore_background,
-                                              counting_method=counting_method,
-                                              stochastic_malis_parameter=stochastic_malis_parameter,
-                                              z_transform=z_transform)
+                              ignore_background=ignore_background,
+                              counting_method=counting_method,
+                              stochastic_malis_parameter=stochastic_malis_parameter,
+                              z_transform=z_transform)
 
     # threshold affinities that fall into the margins
     switch_mask = (T.or_(T.and_(pred < m, pos_pairs < neg_pairs), \
@@ -179,6 +205,7 @@ def malis_metrics(volume_shape, pred, gt, ignore_background=False, counting_meth
     pos_pairs_thresh = T.switch(switch_mask, 0, pos_pairs)
     neg_pairs_thresh = T.switch(switch_mask, 0, neg_pairs)
 
+    # another idea how to handle the counts:
 #    pos_switch_mask = (pos_pairs < neg_pairs)
 #    pos_pairs_thresh = T.switch(pos_switch_mask, 0, pos_pairs_thresh)
 #    neg_switch_mask = (neg_pairs < pos_pairs)
@@ -190,11 +217,15 @@ def malis_metrics(volume_shape, pred, gt, ignore_background=False, counting_meth
     total_pairs = total_pos_pairs + total_neg_pairs
 
     if separate_cost_normalization == True:
-        pos_cost = T.sum((1-pred)**2 * pos_pairs_thresh, axis=sum_over_axes) / total_pos_pairs
-        neg_cost = T.sum(pred**2 * neg_pairs_thresh, axis=sum_over_axes)  / total_neg_pairs
+        pos_cost = T.sum((1-pred)**2 * pos_pairs_thresh, axis=sum_over_axes) / \
+                   total_pos_pairs
+        neg_cost = T.sum(pred**2 * neg_pairs_thresh, axis=sum_over_axes)  / \
+                   total_neg_pairs
     elif separate_cost_normalization == False:
-        pos_cost = T.sum((1-pred)**2 * pos_pairs_thresh, axis=sum_over_axes) / total_pairs
-        neg_cost = T.sum(pred**2 * neg_pairs_thresh, axis=sum_over_axes)  / total_pairs
+        pos_cost = T.sum((1-pred)**2 * pos_pairs_thresh, axis=sum_over_axes) / \
+                   total_pairs
+        neg_cost = T.sum(pred**2 * neg_pairs_thresh, axis=sum_over_axes)  / \
+                   total_pairs
 
     malis_cost = pos_cost_weight * pos_cost + (1-pos_cost_weight) * neg_cost
 
@@ -205,36 +236,51 @@ def malis_metrics(volume_shape, pred, gt, ignore_background=False, counting_meth
 
 
 class malis_metrics_no_theano(object):
-    def __init__(self, volume_shape, ignore_background=False, counting_method=0, m=0.1,
+    def __init__(self, volume_shape, ignore_background=False,
+                 counting_method=0, 
+                 m=0.1,
                  separate_cost_normalization=False,
                  separate_direction_normalization=False,
-                 pos_cost_weight=0.5):
+                 pos_cost_weight=0.5,
+                 stochastic_malis_parameter=0,
+                 z_transform=False):
         """
         volume_shape:           tuple, should be (depth, width, height)
-        ignore background:      if this is set to true, all voxels that have label 0
-                                in the ground truth (background voxels)are being ignored. If false,
-                                then background voxels are counted such that only their
+        ignore background:      if this is set to true, all voxels that have 
+                                label 0 in the ground truth (background
+                                voxels)are being ignored. If false, then
+                                background voxels are counted such that only their
                                 negative counts are considered.
-
         counting method:        how to count voxel pairs.
                                 0: group1 * group2
                                 1: log(group1) * group2 + group1 * log(group2)
                                 2: group1 + group2
 
-        m:                      scalar, margin for the loss function (predicted affinities in [0, m] and [1-m, 1] are ignored)
-
+        m:                      scalar, margin for the loss function 
+                                (predicted affinities in [0, m] and [1-m, 1]
+                                are ignored)
         separate_cost_normalization: bool
-                                whether to normalize the positive and negative cost independently
+                                whether to normalize the positive
+                                and negative cost independently
 
         pos_cost_weight:        scalar in [0, 1]. 
-                                Indicates how much to weigh positive cost compared to negative cost.
+                                Indicates how much to weigh positive cost 
+                                compared to negative cost.
+        stochastic_malis_parameter: scalar >= 0
+                                Range in which each edge is shuffled in Kruskal's
+                                algorithm. A higher value here should leverage
+                                more robustness at a cost of precision.
+        z_transform:            bool
+                                Whether to z-transform the edges per direction
         """
         
 
         # create tensor variables
-        gt_tensor_type = T.TensorType(dtype="int64", broadcastable=[False]*(len(volume_shape)+2))
+        gt_tensor_type = T.TensorType(dtype="int64", 
+                         broadcastable=[False]*(len(volume_shape)+2))
         gt_var = gt_tensor_type("gt_var")
-        edge_tensor_type = T.TensorType(dtype="float32", broadcastable=[False]*(len(volume_shape)+2))
+        edge_tensor_type = T.TensorType(dtype="float32", 
+                           broadcastable=[False]*(len(volume_shape)+2))
         edge_var = edge_tensor_type("edge_var")
 
         # make malisOp variable
@@ -249,18 +295,23 @@ class malis_metrics_no_theano(object):
                 separate_cost_normalization=separate_cost_normalization,
                 separate_direction_normalization=separate_direction_normalization,
                 pos_cost_weight=pos_cost_weight,
-                return_pos_neg_cost=True)
+                return_pos_neg_cost=True,
+                stochastic_malis_parameter=stochastic_malis_parameter,
+                z_transform=z_transform)
 
         # compile compute_metrics function
         self.compute_metrics = theano.function([edge_var, gt_var], 
-                                          [malis_cost_var, pos_pairs_var, neg_pairs_var, pos_cost_var, neg_cost_var])
+                                  [malis_cost_var, pos_pairs_var,
+                                  neg_pairs_var, pos_cost_var, neg_cost_var])
 
 
     def __call__(self, pred, gt):
         """
-        pred:  np.ndarray, dimensions [batch_size, n_edges_per_voxel, depth, width, height]
+        pred:  np.ndarray, 
+               dimensions [batch_size, n_edges_per_voxel, depth, width, height]
 
-        gt:    np.ndarray, dimensions [batch_size, depth, width, height]
+        gt:    np.ndarray, 
+               dimensions [batch_size, depth, width, height]
         """
         batch_size = pred.shape[0]
 
@@ -297,7 +348,9 @@ class malis_metrics_no_theano(object):
 
 class keras_malis(object):
     __name__ = "keras_F_Rand"
-    def __init__(self, volume_shape, ignore_background=False, counting_method=0, m=.1,
+    def __init__(self, volume_shape, ignore_background=False, 
+                 counting_method=0, 
+                 m=.1,
                  separate_cost_normalization=False,
                  separate_direction_normalization=False,
                  pos_cost_weight=0.5,
@@ -307,23 +360,31 @@ class keras_malis(object):
         volume_shape: (depth, width, height),
         and can be plugged as an objective function into keras directly.
 
-        ignore background:      if this is set to true, all voxels that have label 0
-                                in the ground truth (background voxels)are being ignored. If false,
-                                then background voxels are counted such that only their
-                                negative counts are considered.
-
+        ignore background:      if this is set to true, all voxels that have 
+                                label 0 in the ground truth 
+                                (background voxels)are being
+                                ignored. If false, then background voxels are
+                                counted such that only their negative counts are
+                                considered.
         counting method:        how to count voxel pairs.
                                 0: group1 * group2
                                 1: log(group1) * group2 + group1 * log(group2)
                                 2: group1 + group2
-
-        m:                      scalar, margin for the loss function (predicted affinities in [0, m] and [1-m, 1] are ignored)
-
+        m:                      scalar, margin for the loss function
+                                (predicted affinities in [0, m] and [1-m, 1]
+                                are ignored)
         separate_normalization: bool
-                                whether to normalize the positive and negative cost independently
-
+                                whether to normalize the positive and negative
+                                cost independently
         pos_cost_weight:        scalar in [0, 1]. 
-                                Indicates how much to weigh positive cost compared to negative cost.
+                                Indicates how much to weigh positive cost
+                                compared to negative cost.
+        stochastic_malis_parameter: scalar >= 0
+                                Range in which each edge is shuffled in Kruskal's
+                                algorithm. A higher value here should leverage
+                                more robustness at a cost of precision.
+        z_transform:            bool
+                                Whether to z-transform the edges per direction
         """
 
         self.volume_shape = volume_shape

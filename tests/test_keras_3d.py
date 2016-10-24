@@ -62,7 +62,7 @@ m_parameter = .1
 separate_cost_normalization=False
 separate_direction_normalization=True
 pos_cost_weight=.5
-stochastic_malis_parameter=20
+stochastic_malis_parameter=30
 z_transform=True
 
 
@@ -108,7 +108,9 @@ compute_malis_metrics = malis_metrics_no_theano(volume_shape=VOLUME_SHAPE[1:],
        separate_cost_normalization=separate_cost_normalization,
        separate_direction_normalization=separate_direction_normalization,
        counting_method=counting_method,
-       m=m_parameter)
+       m=m_parameter,
+       stochastic_malis_parameter=stochastic_malis_parameter,
+       z_transform=z_transform)
 
 model.compile(optimizer=sgd,
               loss=keras_malis_loss)

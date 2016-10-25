@@ -311,7 +311,7 @@ class malis_metrics_no_theano(object):
                dimensions [batch_size, n_edges_per_voxel, depth, width, height]
 
         gt:    np.ndarray, 
-               dimensions [batch_size, depth, width, height]
+               dimensions [batch_size, 1, depth, width, height]
         """
         batch_size = pred.shape[0]
 

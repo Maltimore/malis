@@ -28,7 +28,7 @@ def malis_loss_weights(np.ndarray[np.int64_t, ndim=1] segTrue,
                 np.ndarray[float, ndim=1] edgeWeight,
                 bool ignore_background=False,
                 int counting_method=0,
-                stochastic_malis_parameter=0):
+                int stochastic_malis_parameter=0):
 
     cdef int nVert = segTrue.shape[0]
     cdef int nEdge = node1.shape[0]

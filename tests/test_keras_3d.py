@@ -140,7 +140,7 @@ plt.ylabel("thresholded training loss")
 # predict an affinity graph and compare it with the affinity graph
 # created by the true segmentation
 plot_sample = 1
-from malis import mknhood3d, seg_to_affgraph
+from malis.malis import mknhood3d, seg_to_affgraph
 pred_aff = model.predict(data)[plot_sample]
 aff = seg_to_affgraph(gt[plot_sample,0], mknhood3d())
 # pred_aff has shape (n_edges, z, y, x)

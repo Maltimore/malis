@@ -3,7 +3,7 @@ import pdb
 import theano
 import theano.tensor as T
 import numpy as np
-import malis as m
+from . import malis as m
 from scipy.special import comb
 from scipy import stats
 

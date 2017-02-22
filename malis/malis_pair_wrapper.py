@@ -25,5 +25,5 @@ def get_counts(aff, gt,
 
 
 # test
-aff = np.random.normal(size=(3, 5, 10, 10))
-gt = np.random.normal(size=(5, 10, 10)).astype(int)
+#aff = np.random.normal(size=(3, 5, 10, 10))
+#gt = np.random.normal(size=(5, 10, 10)).astype(int)

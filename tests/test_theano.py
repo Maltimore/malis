@@ -23,9 +23,21 @@ mop = pair_counter(edges_node_idx_1, edges_node_idx_2, np.array([1,1,8]), ignore
 
 pred_var = T.fmatrix()
 gt_var = int64_matrix()
-pos_pairs, neg_pairs = mop(pred_var, gt_var)
-cost = T.sum(pred_var**2 * neg_pairs)  / T.sum(neg_pairs) + \
-             T.sum((1-pred_var)**2 * pos_pairs)/ T.sum(pos_pairs)
+pos_pairs_var, neg_pairs_var = mop(pred_var, gt_var)
+
+# DEBUG
+get_pairs = theano.function([pred_var, gt_var], [pos_pairs_var, neg_pairs_var])
+pos_pairs, neg_pairs = get_pairs(edge_weights, gt_labels)
+
+from malis_large_volumes import pairs
+mlv_neighborhood = np.array([[1, 0, 0]])
+pos_pairs2, neg_pairs2 = pairs(gt_labels.astype(np.int32), edge_weights.astype(np.int32), mlv_neighborhood.astype(np.int32))
+import pdb; pdb.set_trace()
+
+
+
+cost = T.sum(pred_var**2 * neg_pairs_var)  / T.sum(neg_pairs_var) + \
+             T.sum((1-pred_var)**2 * pos_pairs_var)/ T.sum(pos_pairs_var)
 grad = T.grad(T.sum(cost), pred_var)
 
 get_cost = theano.function([pred_var, gt_var], cost)

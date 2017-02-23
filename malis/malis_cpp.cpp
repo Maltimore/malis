@@ -110,9 +110,8 @@ void malis_loss_weights_cpp(const int nVert, const int64_t* seg,
 					}
 
                     if ((it1->first == it2->first) && (it1->first !=0)&&(it2->first!=0)) {
-						if ((it1->first != 0) && (it2->first != 0))
-							/* only count positives pair that are not background voxels */
-							nPosPairPerEdge[e] += nPair;
+						/* only count positives pair that are not background voxels */
+						nPosPairPerEdge[e] += nPair;
                     } else {
                         nNegPairPerEdge[e] += nPair;
                     }

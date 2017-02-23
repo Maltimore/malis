@@ -4,7 +4,7 @@ import numpy as np
 import malis as m
 
 def get_counts(aff, gt, 
-               ignore_background=True,
+               ignore_background=False,
                counting_method=0,
                stochastic_malis_parameter=0,
                z_transform=False):

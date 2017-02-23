@@ -42,7 +42,13 @@ void malis_loss_weights_cpp(const int nVert, const int64_t* seg,
     boost::disjoint_sets<int*, int*> dsets(&rank[0],&parent[0]);
     for (int i=0; i<nVert; ++i){
         dsets.make_set(i);
-		overlap[i].insert(pair<int,uint64_t>(seg[i],1));
+		if (ignore_background == true) {
+			if (seg[i]!=0){
+				overlap[i].insert(pair<int,uint64_t>(seg[i],1));
+			}
+		} else {
+			overlap[i].insert(pair<int,uint64_t>(seg[i],1));
+		}
     }
 
     /* Sort all the edges in increasing order of weight */
@@ -50,14 +56,9 @@ void malis_loss_weights_cpp(const int nVert, const int64_t* seg,
     int j = 0;
     for ( int i = 0; i < nEdge; i++ ){
         if ((node1[i]>=0) && (node1[i]<nVert) && (node2[i]>=0) && (node2[i]<nVert)){
-			if (ignore_background == true) {
-				if (seg[i]!=0){
-					pqueue[ j++ ] = i;
-				}
-			} else {
-				pqueue[ j++ ] = i;
-			}
+			pqueue[ j++ ] = i;
 		}
+	
     }
     unsigned long nValidEdge = j;
     pqueue.resize(nValidEdge);

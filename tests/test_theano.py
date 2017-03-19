@@ -2,7 +2,7 @@ from __future__ import print_function
 import theano
 import theano.tensor as T
 import numpy as np
-from malis.theano_op import pair_counter, malis_metrics
+import malis.theano_op as malis_theano_op
 from scipy.special import comb
 import pdb
 
@@ -19,7 +19,7 @@ edges_node_idx_2 = edges_node_idx_1 + 1
 edge_weights = np.ones((1, edges_node_idx_1.size), dtype=np.float32) * 0.9
 edge_weights[0, 3] = 0.1
 
-mop = pair_counter(edges_node_idx_1, edges_node_idx_2, np.array([1,1,8]), ignore_background=False)
+mop = malis_theano_op.pair_counter(edges_node_idx_1, edges_node_idx_2, np.array([1,1,8]), ignore_background=False)
 
 pred_var = T.fmatrix()
 gt_var = int64_matrix()
@@ -67,7 +67,7 @@ edge_tensor_type = T.TensorType(dtype="float32", broadcastable=[False]*edges.ndi
 edge_var = edge_tensor_type("edge_var")
 pred = edge_var
 # make malisOp variable
-_, pos_pairs, neg_pairs = malis_metrics(gt.shape[1:], edge_var, gt_var)
+_, pos_pairs, neg_pairs = malis_theano_op.malis_metrics(gt.shape[1:], edge_var, gt_var)
 cost_var = (pred**2 * neg_pairs)  / T.sum(neg_pairs) + \
              ((1-pred)**2 * pos_pairs)/ T.sum(pos_pairs)
 cost_var /= 2

@@ -1,4 +1,5 @@
 # MALIS 
+## This repository is not actively maintained anymore, consider switching to github.com/thouis/malis_large_volumes
 #### Structured loss function for supervised learning of segmentation and clustering
 
 Python and MATLAB wrapper for C++ functions for computing the MALIS loss
